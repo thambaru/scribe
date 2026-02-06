@@ -178,6 +178,19 @@ defmodule SocialScribeWeb.MeetingLive.IntegrationModalComponent do
 
         {:noreply, assign(socket, suggestions: updated_suggestions)}
       end
+
+      # Helper function to calculate selection counts for suggestions
+      defp calculate_selection_counts(suggestions) do
+        selected_count = Enum.count(suggestions, & &1.apply)
+        object_count = if selected_count > 0, do: 1, else: 0
+        integration_count = if selected_count > 0, do: 1, else: 0
+
+        %{
+          selected_count: selected_count,
+          object_count: object_count,
+          integration_count: integration_count
+        }
+      end
     end
   end
 end

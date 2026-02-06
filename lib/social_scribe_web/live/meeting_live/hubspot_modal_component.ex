@@ -51,7 +51,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
   attr :patch, :string, required: true
 
   defp suggestions_section(assigns) do
-    assigns = assign(assigns, :selected_count, Enum.count(assigns.suggestions, & &1.apply))
+    counts = calculate_selection_counts(assigns.suggestions)
+    assigns = assign(assigns, counts)
 
     ~H"""
     <div class="space-y-4">
@@ -79,7 +80,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
               disabled={@selected_count == 0}
               loading={@loading}
               loading_text="Updating..."
-              info_text={"1 object, #{@selected_count} fields in 1 integration selected to update"}
+              info_text={"#{@object_count} object, #{@selected_count} fields in #{@integration_count} integration selected to update"}
             />
           </form>
         <% end %>
