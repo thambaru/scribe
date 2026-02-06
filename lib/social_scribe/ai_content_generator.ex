@@ -102,16 +102,31 @@ defmodule SocialScribe.AIContentGenerator do
   end
 
   @impl SocialScribe.AIContentGeneratorApi
-  def generate_salesforce_suggestions(meeting) do
+  def generate_salesforce_suggestions(meeting, contact) do
     case Meetings.generate_prompt_for_meeting(meeting) do
       {:error, reason} ->
         {:error, reason}
 
       {:ok, meeting_prompt} ->
+        contact_name = "#{Map.get(contact, :firstname, "")} #{Map.get(contact, :lastname, "")}"
+        contact_email = Map.get(contact, :email, "")
+
         prompt = """
         You are an AI assistant that extracts contact information updates from meeting transcripts.
 
-        Analyze the following meeting transcript and extract any information that could be used to update a Salesforce Contact record.
+        IMPORTANT CONTEXT:
+        You are updating information for a SPECIFIC contact:
+        - Name: #{contact_name}
+        - Email: #{contact_email}
+
+        Analyze the following meeting transcript and extract ONLY information that is relevant to #{contact_name}.
+
+        CRITICAL RULES:
+        - ONLY extract information that is explicitly mentioned about #{contact_name}
+        - DO NOT extract information about other people mentioned in the transcript
+        - If someone else's contact details are mentioned (e.g., "Ben called and his email is..."), DO NOT include it
+        - If the transcript mentions updating or correcting #{contact_name}'s information, include those updates
+        - When in doubt, err on the side of NOT including information
 
         Look for mentions of:
         - First name (FirstName)
@@ -122,7 +137,7 @@ defmodule SocialScribe.AIContentGenerator do
         - Department (Department)
         - Physical address details (MailingStreet, MailingCity, MailingState, MailingPostalCode, MailingCountry)
 
-        IMPORTANT: Only extract information that is EXPLICITLY mentioned in the transcript. Do not infer or guess.
+        IMPORTANT: Only extract information that is EXPLICITLY mentioned in the transcript about #{contact_name}. Do not infer or guess.
 
         The transcript includes timestamps in [MM:SS] format at the start of each line.
 
