@@ -50,7 +50,7 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
 
     ~H"""
     <div class="space-y-4">
-      <%= if @loading do %>
+      <%= if @loading and Enum.empty?(@suggestions) do %>
         <div class="text-center py-8 text-slate-500">
           <.icon name="hero-arrow-path" class="h-6 w-6 animate-spin mx-auto mb-2" />
           <p>Generating suggestions...</p>
