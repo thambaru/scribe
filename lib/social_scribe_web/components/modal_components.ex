@@ -327,10 +327,11 @@ defmodule SocialScribeWeb.ModalComponents do
 
   ## Examples
 
-      <.suggestion_card suggestion={%{field: "email", label: "Email", ...}} />
+      <.suggestion_card suggestion={%{field: "email", label: "Email", ...}} target={@myself} />
   """
   attr :suggestion, :map, required: true
   attr :class, :string, default: nil
+  attr :target, :any, default: nil
 
   def suggestion_card(assigns) do
     ~H"""
@@ -358,13 +359,19 @@ defmodule SocialScribeWeb.ModalComponents do
           >
             1 update selected
           </span>
-          <button type="button" class="text-xs text-hubspot-hide hover:text-hubspot-hide-hover font-medium">
-            Hide details
+          <button
+            type="button"
+            phx-click="toggle_details"
+            phx-value-field={@suggestion.field}
+            phx-target={@target}
+            class="text-xs text-hubspot-hide hover:text-hubspot-hide-hover font-medium"
+          >
+            {if Map.get(@suggestion, :hidden, false), do: "Show details", else: "Hide details"}
           </button>
         </div>
       </div>
 
-      <div class="mt-2 pl-8">
+      <div :if={!Map.get(@suggestion, :hidden, false)} class="mt-2 pl-8">
         <div class="text-sm font-medium text-slate-700 leading-5 ml-1">{@suggestion.label}</div>
 
         <div class="relative mt-2">

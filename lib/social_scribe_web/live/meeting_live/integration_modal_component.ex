@@ -164,6 +164,20 @@ defmodule SocialScribeWeb.MeetingLive.IntegrationModalComponent do
       def handle_event("apply_updates", _params, socket) do
         {:noreply, assign(socket, error: "Please select at least one field to update")}
       end
+
+      @impl true
+      def handle_event("toggle_details", %{"field" => field}, socket) do
+        updated_suggestions =
+          Enum.map(socket.assigns.suggestions, fn suggestion ->
+            if suggestion.field == field do
+              Map.put(suggestion, :hidden, !Map.get(suggestion, :hidden, false))
+            else
+              suggestion
+            end
+          end)
+
+        {:noreply, assign(socket, suggestions: updated_suggestions)}
+      end
     end
   end
 end

@@ -69,7 +69,7 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
         <% else %>
           <form phx-submit="apply_updates" phx-change="toggle_suggestion" phx-target={@myself}>
             <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              <.salesforce_suggestion_card :for={suggestion <- @suggestions} suggestion={suggestion} />
+              <.salesforce_suggestion_card :for={suggestion <- @suggestions} suggestion={suggestion} target={@myself} />
             </div>
 
             <.modal_footer
@@ -90,6 +90,7 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
 
   attr :suggestion, :map, required: true
   attr :class, :string, default: nil
+  attr :target, :any, default: nil
 
   defp salesforce_suggestion_card(assigns) do
     ~H"""
@@ -117,13 +118,19 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
           >
             1 update selected
           </span>
-          <button type="button" class="text-xs text-slate-500 hover:text-slate-700 font-medium">
-            Hide details
+          <button
+            type="button"
+            phx-click="toggle_details"
+            phx-value-field={@suggestion.field}
+            phx-target={@target}
+            class="text-xs text-slate-500 hover:text-slate-700 font-medium"
+          >
+            {if Map.get(@suggestion, :hidden, false), do: "Show details", else: "Hide details"}
           </button>
         </div>
       </div>
 
-      <div class="mt-2 pl-8">
+      <div :if={!Map.get(@suggestion, :hidden, false)} class="mt-2 pl-8">
         <div class="text-sm font-medium text-slate-700 leading-5 ml-1">{@suggestion.label}</div>
 
         <div class="relative mt-2">
