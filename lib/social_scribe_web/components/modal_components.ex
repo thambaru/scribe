@@ -325,25 +325,40 @@ defmodule SocialScribeWeb.ModalComponents do
   @doc """
   Renders a suggestion card with checkbox.
 
+  Supports theming via the `theme` attribute:
+  - `:hubspot` (default) — HubSpot brand colors
+  - `:salesforce` — Salesforce brand colors
+
   ## Examples
 
       <.suggestion_card suggestion={%{field: "email", label: "Email", ...}} target={@myself} />
+      <.suggestion_card suggestion={suggestion} target={@myself} theme={:salesforce} />
   """
   attr :suggestion, :map, required: true
   attr :class, :string, default: nil
   attr :target, :any, default: nil
+  attr :theme, :atom, default: :hubspot, values: [:hubspot, :salesforce]
+  attr :id_prefix, :string, default: "suggestion"
 
   def suggestion_card(assigns) do
+    theme_classes = theme_classes(assigns.theme)
+    selected_count = if assigns.suggestion.apply, do: 1, else: 0
+
+    assigns =
+      assigns
+      |> assign(:theme_classes, theme_classes)
+      |> assign(:selected_count, selected_count)
+
     ~H"""
-    <div class={["bg-hubspot-card rounded-2xl p-6 mb-4", @class]}>
+    <div class={[@theme_classes.card, "rounded-2xl p-6 mb-4", @class]}>
       <div class="flex items-start justify-between">
         <div class="flex items-start gap-3">
           <div class="flex items-center h-5 pt-0.5">
             <input
               type="checkbox"
               checked={@suggestion.apply}
-              phx-click={JS.dispatch("click", to: "#suggestion-apply-#{@suggestion.field}")}
-              class="h-4 w-4 rounded-[3px] border-slate-300 text-hubspot-checkbox accent-hubspot-checkbox focus:ring-0 focus:ring-offset-0 cursor-pointer"
+              phx-click={JS.dispatch("click", to: "##{@id_prefix}-apply-#{@suggestion.field}")}
+              class={["h-4 w-4 rounded-[3px] border-slate-300 focus:ring-0 focus:ring-offset-0 cursor-pointer", @theme_classes.checkbox]}
             />
           </div>
           <div class="text-sm font-semibold text-slate-900 leading-5">{@suggestion.label}</div>
@@ -352,19 +367,20 @@ defmodule SocialScribeWeb.ModalComponents do
         <div class="flex items-center gap-3 pt-0.5">
           <span
             class={[
-              "inline-flex items-center rounded-full bg-hubspot-pill px-2 py-1 text-xs font-medium text-hubspot-pill-text",
+              "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium",
+              @theme_classes.pill,
               if(@suggestion.apply, do: "opacity-100", else: "opacity-0 pointer-events-none")
             ]}
             aria-hidden={to_string(!@suggestion.apply)}
           >
-            1 update selected
+            {@selected_count} update selected
           </span>
           <button
             type="button"
             phx-click="toggle_details"
             phx-value-field={@suggestion.field}
             phx-target={@target}
-            class="text-xs text-hubspot-hide hover:text-hubspot-hide-hover font-medium"
+            class={["text-xs font-medium", @theme_classes.hide_button]}
           >
             {if Map.get(@suggestion, :hidden, false), do: "Show details", else: "Hide details"}
           </button>
@@ -376,12 +392,12 @@ defmodule SocialScribeWeb.ModalComponents do
 
         <div class="relative mt-2">
           <input
-            id={"suggestion-apply-#{@suggestion.field}"}
+            id={"#{@id_prefix}-apply-#{@suggestion.field}"}
             type="checkbox"
             name={"apply[#{@suggestion.field}]"}
             value="1"
             checked={@suggestion.apply}
-            class="absolute -left-8 top-1/2 -translate-y-1/2 h-4 w-4 rounded-[3px] border-slate-300 text-hubspot-checkbox accent-hubspot-checkbox focus:ring-0 focus:ring-offset-0 cursor-pointer"
+            class={["absolute -left-8 top-1/2 -translate-y-1/2 h-4 w-4 rounded-[3px] border-slate-300 focus:ring-0 focus:ring-offset-0 cursor-pointer", @theme_classes.checkbox]}
           />
 
           <div class="grid grid-cols-[1fr_32px_1fr] items-center gap-6">
@@ -396,7 +412,7 @@ defmodule SocialScribeWeb.ModalComponents do
               ]}
             />
 
-            <div class="w-8 flex justify-center text-hubspot-arrow">
+            <div class={["w-8 flex justify-center", @theme_classes.arrow]}>
               <.icon name="hero-arrow-long-right" class="h-7 w-7" />
             </div>
 
@@ -404,18 +420,18 @@ defmodule SocialScribeWeb.ModalComponents do
               type="text"
               name={"values[#{@suggestion.field}]"}
               value={@suggestion.new_value}
-              class="block w-full shadow-sm text-sm text-slate-900 bg-white border border-hubspot-input rounded-[7px] py-1.5 px-2 focus:ring-blue-500 focus:border-blue-500"
+              class="block w-full shadow-sm text-sm text-slate-900 bg-white border border-gray-300 rounded-[7px] py-1.5 px-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         </div>
 
         <div class="mt-3 grid grid-cols-[1fr_32px_1fr] items-start gap-6">
-          <button type="button" class="text-xs text-hubspot-link hover:text-hubspot-link-hover font-medium justify-self-start">
+          <button type="button" class={["text-xs font-medium justify-self-start", @theme_classes.link]}>
             Update mapping
           </button>
           <span></span>
           <span :if={@suggestion[:timestamp]} class="text-xs text-slate-500 justify-self-start">Found in transcript<span
-              class="text-hubspot-link hover:underline cursor-help"
+              class={["hover:underline cursor-help", @theme_classes.link]}
               title={@suggestion[:context]}
             >
               ({@suggestion[:timestamp]})
@@ -612,6 +628,29 @@ defmodule SocialScribeWeb.ModalComponents do
       </div>
     </div>
     """
+  end
+
+  @doc false
+  defp theme_classes(:salesforce) do
+    %{
+      card: "bg-slate-50",
+      checkbox: "text-[#00A1E0] accent-[#00A1E0]",
+      pill: "bg-blue-100 text-blue-800",
+      hide_button: "text-slate-500 hover:text-slate-700",
+      arrow: "text-slate-400",
+      link: "text-[#00A1E0] hover:text-[#0082B4]"
+    }
+  end
+
+  defp theme_classes(:hubspot) do
+    %{
+      card: "bg-hubspot-card",
+      checkbox: "text-hubspot-checkbox accent-hubspot-checkbox",
+      pill: "bg-hubspot-pill text-hubspot-pill-text",
+      hide_button: "text-hubspot-hide hover:text-hubspot-hide-hover",
+      arrow: "text-hubspot-arrow",
+      link: "text-hubspot-link hover:text-hubspot-link-hover"
+    }
   end
 
   defp show_modal(js \\ %JS{}, id) when is_binary(id) do

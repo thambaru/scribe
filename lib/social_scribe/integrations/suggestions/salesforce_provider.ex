@@ -12,14 +12,26 @@ defmodule SocialScribe.Integrations.Suggestions.SalesforceProvider do
     "LastName" => "Last Name",
     "Email" => "Email",
     "Phone" => "Phone",
+    "HomePhone" => "Home Phone",
     "MobilePhone" => "Mobile Phone",
+    "OtherPhone" => "Other Phone",
+    "Fax" => "Fax",
     "Title" => "Job Title",
     "Department" => "Department",
-    "MailingStreet" => "Street Address",
-    "MailingCity" => "City",
-    "MailingState" => "State",
-    "MailingPostalCode" => "Postal Code",
-    "MailingCountry" => "Country"
+    "AssistantName" => "Assistant Name",
+    "AssistantPhone" => "Assistant Phone",
+    "MailingStreet" => "Mailing Street",
+    "MailingCity" => "Mailing City",
+    "MailingState" => "Mailing State",
+    "MailingPostalCode" => "Mailing Postal Code",
+    "MailingCountry" => "Mailing Country",
+    "OtherStreet" => "Other Street",
+    "OtherCity" => "Other City",
+    "OtherState" => "Other State",
+    "OtherPostalCode" => "Other Postal Code",
+    "OtherCountry" => "Other Country",
+    "Birthdate" => "Birthdate",
+    "Description" => "Description"
   }
 
   @field_to_key %{
@@ -27,14 +39,26 @@ defmodule SocialScribe.Integrations.Suggestions.SalesforceProvider do
     "LastName" => :lastname,
     "Email" => :email,
     "Phone" => :phone,
+    "HomePhone" => :home_phone,
     "MobilePhone" => :mobilephone,
+    "OtherPhone" => :other_phone,
+    "Fax" => :fax,
     "Title" => :title,
     "Department" => :department,
+    "AssistantName" => :assistant_name,
+    "AssistantPhone" => :assistant_phone,
     "MailingStreet" => :mailing_street,
     "MailingCity" => :mailing_city,
     "MailingState" => :mailing_state,
     "MailingPostalCode" => :mailing_postal_code,
-    "MailingCountry" => :mailing_country
+    "MailingCountry" => :mailing_country,
+    "OtherStreet" => :other_street,
+    "OtherCity" => :other_city,
+    "OtherState" => :other_state,
+    "OtherPostalCode" => :other_postal_code,
+    "OtherCountry" => :other_country,
+    "Birthdate" => :birthdate,
+    "Description" => :description
   }
 
   @impl true
@@ -60,4 +84,3 @@ defmodule SocialScribe.Integrations.Suggestions.SalesforceProvider do
 
   def get_contact_field(_, _), do: nil
 end
-

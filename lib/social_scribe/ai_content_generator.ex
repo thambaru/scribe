@@ -58,21 +58,24 @@ defmodule SocialScribe.AIContentGenerator do
         Analyze the following meeting transcript and extract any information that could be used to update a CRM contact record.
 
         Look for mentions of:
-        - Phone numbers (phone, mobilephone)
+        - Phone numbers (phone, mobilephone, fax)
         - Email addresses (email)
         - Company name (company)
         - Job title/role (jobtitle)
+        - Industry (industry)
         - Physical address details (address, city, state, zip, country)
         - Website URLs (website)
         - LinkedIn profile (linkedin_url)
         - Twitter handle (twitter_handle)
+        - Date of birth (date_of_birth)
+        - Description or notes (description)
 
         IMPORTANT: Only extract information that is EXPLICITLY mentioned in the transcript. Do not infer or guess.
 
         The transcript includes timestamps in [MM:SS] format at the start of each line.
 
         Return your response as a JSON array of objects. Each object should have:
-        - "field": the CRM field name (use exactly: firstname, lastname, email, phone, mobilephone, company, jobtitle, address, city, state, zip, country, website, linkedin_url, twitter_handle)
+        - "field": the CRM field name (use exactly: firstname, lastname, email, phone, mobilephone, fax, company, jobtitle, industry, address, city, state, zip, country, website, linkedin_url, twitter_handle, date_of_birth, description)
         - "value": the extracted value
         - "context": a brief quote of where this was mentioned
         - "timestamp": the timestamp in MM:SS format where this was mentioned
@@ -131,18 +134,22 @@ defmodule SocialScribe.AIContentGenerator do
         Look for mentions of:
         - First name (FirstName)
         - Last name (LastName)
-        - Phone numbers (Phone, MobilePhone)
+        - Phone numbers (Phone, HomePhone, MobilePhone, OtherPhone, Fax)
         - Email addresses (Email)
         - Job title/role (Title)
         - Department (Department)
-        - Physical address details (MailingStreet, MailingCity, MailingState, MailingPostalCode, MailingCountry)
+        - Assistant info (AssistantName, AssistantPhone)
+        - Mailing address (MailingStreet, MailingCity, MailingState, MailingPostalCode, MailingCountry)
+        - Other address (OtherStreet, OtherCity, OtherState, OtherPostalCode, OtherCountry)
+        - Birthdate (Birthdate)
+        - Description or notes (Description)
 
         IMPORTANT: Only extract information that is EXPLICITLY mentioned in the transcript about #{contact_name}. Do not infer or guess.
 
         The transcript includes timestamps in [MM:SS] format at the start of each line.
 
         Return your response as a JSON array of objects. Each object should have:
-        - "field": the Salesforce field name (use exactly: FirstName, LastName, Email, Phone, MobilePhone, Title, Department, MailingStreet, MailingCity, MailingState, MailingPostalCode, MailingCountry)
+        - "field": the Salesforce field name (use exactly: FirstName, LastName, Email, Phone, HomePhone, MobilePhone, OtherPhone, Fax, Title, Department, AssistantName, AssistantPhone, MailingStreet, MailingCity, MailingState, MailingPostalCode, MailingCountry, OtherStreet, OtherCity, OtherState, OtherPostalCode, OtherCountry, Birthdate, Description)
         - "value": the extracted value
         - "context": a brief quote of where this was mentioned
         - "timestamp": the timestamp in MM:SS format where this was mentioned
@@ -152,6 +159,7 @@ defmodule SocialScribe.AIContentGenerator do
         Example response format:
         [
           {"field": "Phone", "value": "555-123-4567", "context": "John mentioned 'you can reach me at 555-123-4567'", "timestamp": "01:23"},
+          {"field": "MobilePhone", "value": "555-987-6543", "context": "John said 'my cell is 555-987-6543'", "timestamp": "02:10"},
           {"field": "Title", "value": "Senior Engineer", "context": "Sarah said she was promoted to Senior Engineer", "timestamp": "05:47"}
         ]
 
