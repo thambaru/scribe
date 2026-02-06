@@ -71,3 +71,11 @@
     <% end %>
   </div>
 </div>
+
+<div id="chat-sidebar-portal" phx-hook="ChatPortal" phx-update="ignore">
+  <.live_component
+    module={SocialScribeWeb.ChatLive.ChatSidebarComponent}
+    id="chat-sidebar"
+    current_user={@current_user}
+  />
+</div>

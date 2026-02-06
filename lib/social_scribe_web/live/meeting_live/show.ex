@@ -1,5 +1,6 @@
 defmodule SocialScribeWeb.MeetingLive.Show do
   use SocialScribeWeb, :live_view
+  use SocialScribeWeb.ChatLive.ChatHandlers
 
   import SocialScribeWeb.PlatformLogo
   import SocialScribeWeb.ClipboardButton

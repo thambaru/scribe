@@ -1,5 +1,6 @@
 defmodule SocialScribeWeb.HomeLive do
   use SocialScribeWeb, :live_view
+  use SocialScribeWeb.ChatLive.ChatHandlers
 
   alias SocialScribe.Calendar
   alias SocialScribe.CalendarSyncronizer

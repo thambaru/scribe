@@ -74,3 +74,11 @@
     patch={~p"/dashboard/automations/#{@automation}"}
   />
 </.modal>
+
+<div id="chat-sidebar-portal" phx-hook="ChatPortal" phx-update="ignore">
+  <.live_component
+    module={SocialScribeWeb.ChatLive.ChatSidebarComponent}
+    id="chat-sidebar"
+    current_user={@current_user}
+  />
+</div>

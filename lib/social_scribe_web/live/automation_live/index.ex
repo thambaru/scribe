@@ -1,5 +1,6 @@
 defmodule SocialScribeWeb.AutomationLive.Index do
   use SocialScribeWeb, :live_view
+  use SocialScribeWeb.ChatLive.ChatHandlers
 
   alias SocialScribe.Automations
   alias SocialScribe.Automations.Automation
