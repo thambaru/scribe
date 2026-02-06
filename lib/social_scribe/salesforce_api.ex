@@ -249,7 +249,7 @@ defmodule SocialScribe.SalesforceApi do
   defp with_token_refresh(%UserCredential{} = credential, api_call) do
     with {:ok, credential} <- SalesforceTokenRefresher.ensure_valid_token(credential) do
       case api_call.(credential) do
-        {:error, {:api_error, 401, body}} ->
+        {:error, {:api_error, 401, _body}} ->
           Logger.info("Salesforce token expired, refreshing and retrying...")
           retry_with_fresh_token(credential, api_call)
 
