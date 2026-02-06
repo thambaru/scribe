@@ -68,6 +68,11 @@
 
 <%!-- Chat Sidebar --%>
 <.chat_sidebar_shell chat_open={assigns[:chat_open] || false}>
+  <.live_component
+    module={SocialScribeWeb.ChatLive.ChatSidebarComponent}
+    id="chat-sidebar"
+    current_user={@current_user}
+  />
 </.chat_sidebar_shell>
 
 <%!-- Chat Floating Button --%>
