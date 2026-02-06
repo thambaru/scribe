@@ -39,11 +39,13 @@ config :social_scribe, :gemini_api_key, System.get_env("GEMINI_API_KEY")
 
 config :ueberauth, Ueberauth.Strategy.Hubspot.OAuth,
   client_id: System.get_env("HUBSPOT_CLIENT_ID"),
-  client_secret: System.get_env("HUBSPOT_CLIENT_SECRET")
+  client_secret: System.get_env("HUBSPOT_CLIENT_SECRET"),
+  redirect_uri: System.get_env("HUBSPOT_REDIRECT_URI")
 
 config :ueberauth, Ueberauth.Strategy.Salesforce.OAuth,
   client_id: System.get_env("SALESFORCE_CLIENT_ID"),
-  client_secret: System.get_env("SALESFORCE_CLIENT_SECRET")
+  client_secret: System.get_env("SALESFORCE_CLIENT_SECRET"),
+  redirect_uri: System.get_env("SALESFORCE_REDIRECT_URI")
 
 if System.get_env("PHX_SERVER") do
   config :social_scribe, SocialScribeWeb.Endpoint, server: true
