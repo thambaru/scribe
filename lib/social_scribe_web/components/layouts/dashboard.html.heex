@@ -65,3 +65,10 @@
     </main>
   </div>
 </div>
+
+<%!-- Chat Sidebar --%>
+<.chat_sidebar_shell chat_open={assigns[:chat_open] || false}>
+</.chat_sidebar_shell>
+
+<%!-- Chat Floating Button --%>
+<.chat_floating_button :if={!(assigns[:chat_open] || false)} />

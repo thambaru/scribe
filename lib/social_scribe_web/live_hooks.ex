@@ -9,6 +9,10 @@ defmodule SocialScribeWeb.LiveHooks do
     {:cont, socket}
   end
 
+  def on_mount(:attach_chat_sidebar, _params, _session, socket) do
+    {:cont, assign(socket, :chat_open, false)}
+  end
+
   defp assign_current_path(_params, uri, socket) do
     uri = URI.parse(uri)
 

@@ -71,7 +71,8 @@ defmodule SocialScribeWeb.Router do
     live_session :require_authenticated_user,
       on_mount: [
         {SocialScribeWeb.UserAuth, :ensure_authenticated},
-        {SocialScribeWeb.LiveHooks, :assign_current_path}
+        {SocialScribeWeb.LiveHooks, :assign_current_path},
+        {SocialScribeWeb.LiveHooks, :attach_chat_sidebar}
       ],
       layout: {SocialScribeWeb.Layouts, :dashboard} do
       live "/", HomeLive

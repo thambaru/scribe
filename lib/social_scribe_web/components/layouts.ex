@@ -11,6 +11,7 @@ defmodule SocialScribeWeb.Layouts do
   use SocialScribeWeb, :html
 
   import SocialScribeWeb.Sidebar
+  import SocialScribeWeb.ChatComponents
 
   embed_templates "layouts/*"
 end
