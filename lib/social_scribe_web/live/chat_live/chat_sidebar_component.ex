@@ -62,7 +62,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
     ~H"""
     <div class="flex flex-col h-full" id={"chat-sidebar-#{@id}"}>
       <%!-- Header --%>
-      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white">
         <h2 class="text-lg font-semibold text-gray-900">Ask Anything</h2>
         <button
           phx-click="toggle_chat_sidebar"
@@ -74,15 +74,15 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
       </div>
 
       <%!-- Tabs --%>
-      <div class="flex items-center border-b border-gray-200 bg-white px-2">
+      <div class="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-white">
         <button
           phx-click="switch_tab"
           phx-value-tab="chat"
           phx-target={@myself}
           class={[
-            "px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-            @active_tab == :chat && "border-indigo-600 text-indigo-600",
-            @active_tab != :chat && "border-transparent text-gray-500 hover:text-gray-700"
+            "px-3 py-1.5 text-sm font-medium rounded-full transition-colors",
+            @active_tab == :chat && "bg-gray-100 text-gray-900",
+            @active_tab != :chat && "text-gray-500 hover:text-gray-700"
           ]}
         >
           Chat
@@ -92,9 +92,9 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
           phx-value-tab="history"
           phx-target={@myself}
           class={[
-            "px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-            @active_tab == :history && "border-indigo-600 text-indigo-600",
-            @active_tab != :history && "border-transparent text-gray-500 hover:text-gray-700"
+            "px-3 py-1.5 text-sm font-medium rounded-full transition-colors",
+            @active_tab == :history && "bg-gray-100 text-gray-900",
+            @active_tab != :history && "text-gray-500 hover:text-gray-700"
           ]}
         >
           History
@@ -103,7 +103,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
         <button
           phx-click="new_conversation"
           phx-target={@myself}
-          class="p-1.5 text-gray-400 hover:text-indigo-600 transition-colors"
+          class="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
           title="New conversation"
         >
           <.icon name="hero-plus" class="size-4" />
@@ -112,96 +112,99 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
 
       <%!-- Content --%>
       <%= if @active_tab == :chat do %>
-        <%!-- Messages area --%>
-        <div
-          class="flex-1 overflow-y-auto px-4 py-3 space-y-1"
-          id="chat-messages-scroll"
-          phx-hook="ChatScroll"
-        >
-          <div :if={@messages == []} class="flex items-center justify-center h-full">
-            <div class="text-center text-gray-400">
-              <.icon name="hero-chat-bubble-left-right" class="size-10 mx-auto mb-2" />
-              <p class="text-sm">Ask anything about your CRM contacts</p>
-              <p class="text-xs mt-1">Use @mention to reference contacts</p>
-            </div>
-          </div>
-
-          <div :for={message <- @messages}>
-            <.chat_message_bubble
-              role={message.role}
-              content={message.content}
-              mentioned_contacts={message.mentioned_contacts || []}
-              sources={format_sources(message.sources || [])}
-            />
-          </div>
-
-          <div :if={@sending} class="flex justify-start mb-3">
-            <div class="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-2.5 text-sm text-gray-500">
-              <div class="flex items-center gap-2">
-                <div class="animate-pulse flex gap-1">
-                  <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.1s]">
-                  </div>
-                  <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]">
-                  </div>
-                </div>
-                <span>Thinking...</span>
+        <div class="flex-1 flex flex-col px-4 py-3">
+          <div class="flex-1 overflow-y-auto space-y-2" id="chat-messages-scroll" phx-hook="ChatScroll">
+            <div :if={@messages == []} class="flex items-center justify-center h-full">
+              <div class="text-center text-gray-400">
+                <.icon name="hero-chat-bubble-left-right" class="size-10 mx-auto mb-2" />
+                <p class="text-sm">Ask anything about your CRM contacts</p>
+                <p class="text-xs mt-1">Use @mention to reference contacts</p>
               </div>
             </div>
-          </div>
-        </div>
 
-        <%!-- Input area --%>
-        <div class="border-t border-gray-200 bg-white p-3">
-          <%!-- Mention dropdown --%>
-          <div :if={@mention_query != nil} class="relative">
-            <.mention_dropdown
-              results={@mention_results}
-              searching={@searching_contacts}
-              target={@myself}
-            />
-          </div>
-
-          <form phx-submit="send_message" phx-target={@myself} class="flex items-end gap-2">
-            <div class="flex-1 relative">
-              <div
-                id="chat-mention-input"
-                phx-hook="MentionInput"
-                phx-target={@myself}
-                contenteditable="true"
-                data-placeholder="Ask about a contact..."
-                class="min-h-[40px] max-h-[120px] overflow-y-auto px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400"
-                role="textbox"
-              >
-              </div>
-              <input type="hidden" name="message" id="chat-message-hidden" value="" />
-              <input
-                type="hidden"
-                name="mentioned_contacts"
-                id="chat-mentions-hidden"
-                value={Jason.encode!(@mentioned_contacts)}
+            <div :for={message <- @messages}>
+              <.chat_message_bubble
+                role={message.role}
+                content={message.content}
+                mentioned_contacts={message.mentioned_contacts || []}
+                sources={format_sources(message.sources || [])}
               />
             </div>
-            <button
-              type="submit"
-              disabled={@sending}
-              class="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-            >
-              <.icon name="hero-arrow-up" class="size-4" />
-            </button>
-          </form>
 
-          <%!-- Source icons for mentioned contacts --%>
-          <div :if={@mentioned_contacts != []} class="mt-2 flex items-center gap-2">
-            <span class="text-xs text-gray-400">Context:</span>
-            <.source_icons contacts={@mentioned_contacts} />
-            <span class="text-xs text-gray-500">
-              {length(@mentioned_contacts)} contact(s) referenced
-            </span>
+            <div :if={@sending} class="flex justify-start mb-3">
+              <div class="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-2.5 text-sm text-gray-500">
+                <div class="flex items-center gap-2">
+                  <div class="animate-pulse flex gap-1">
+                    <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.1s]">
+                    </div>
+                    <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]">
+                    </div>
+                  </div>
+                  <span>Thinking...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 rounded-2xl border border-[#b7c7e8] bg-white p-3 shadow-[0_12px_24px_rgba(59,130,246,0.12)]">
+            <div class="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                class="inline-flex items-center gap-1.5 rounded-full border border-[#c9d7f0] bg-[#eef4ff] px-3 py-1 text-xs font-medium text-[#2f5bd1]"
+              >
+                <.icon name="hero-plus" class="size-3" />
+                Add context
+              </button>
+            </div>
+
+            <div class="relative">
+              <div :if={@mention_query != nil} class="relative">
+                <.mention_dropdown
+                  results={@mention_results}
+                  searching={@searching_contacts}
+                  target={@myself}
+                />
+              </div>
+
+              <form phx-submit="send_message" phx-target={@myself} class="space-y-2">
+                <div
+                  id="chat-mention-input"
+                  phx-hook="MentionInput"
+                  phx-target={@myself}
+                  contenteditable="true"
+                  data-placeholder="Ask anything about your meetings"
+                  class="min-h-[72px] max-h-[140px] overflow-y-auto text-sm text-gray-700 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400"
+                  role="textbox"
+                >
+                </div>
+                <input type="hidden" name="message" id="chat-message-hidden" value="" />
+                <input
+                  type="hidden"
+                  name="mentioned_contacts"
+                  id="chat-mentions-hidden"
+                  value={Jason.encode!(@mentioned_contacts)}
+                />
+
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2 text-xs text-gray-400">
+                    <span>Sources</span>
+                    <.source_icons contacts={@mentioned_contacts} />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={@sending}
+                    class="w-9 h-9 rounded-full bg-[#e3ebfb] text-[#2f5bd1] flex items-center justify-center hover:bg-[#d5e2fb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Send message"
+                  >
+                    <.icon name="hero-arrow-up" class="size-4" />
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       <% else %>
-        <%!-- History tab --%>
         <div class="flex-1 overflow-y-auto">
           <div :if={@conversations == []} class="flex items-center justify-center h-full">
             <div class="text-center text-gray-400">

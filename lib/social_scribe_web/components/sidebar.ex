@@ -16,7 +16,7 @@ defmodule SocialScribeWeb.Sidebar do
 
   def sidebar(assigns) do
     ~H"""
-    <div class="w-[212px] sticky bg-white text-black flex flex-col">
+    <div class="w-[240px] sticky top-0 h-screen bg-white text-black flex flex-col border-r border-gray-100">
       <nav class="flex-1 px-2 mt-12">
         <ul class="space-y-1">
           <li :for={{label, icon, path} <- @links}>
@@ -32,7 +32,7 @@ defmodule SocialScribeWeb.Sidebar do
         </ul>
       </nav>
 
-      <div :for={widget <- @widget}>
+      <div :for={widget <- @widget} class="mt-auto px-3 pb-4">
         {render_slot(widget)}
       </div>
     </div>
