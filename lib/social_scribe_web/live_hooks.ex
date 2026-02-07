@@ -10,7 +10,8 @@ defmodule SocialScribeWeb.LiveHooks do
   end
 
   def on_mount(:attach_chat_sidebar, _params, _session, socket) do
-    {:cont, assign(socket, :chat_open, false)}
+    chat_open = Map.get(socket.assigns, :chat_open, false)
+    {:cont, assign(socket, :chat_open, chat_open)}
   end
 
   defp assign_current_path(_params, uri, socket) do

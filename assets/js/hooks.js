@@ -1,5 +1,6 @@
 import ChatPortal from "./hooks/chat_portal"
 import ChatScroll from "./hooks/chat_scroll"
+import ChatSidebar from "./hooks/chat_sidebar"
 import MentionInput from "./hooks/mention_input"
 
 let Hooks = {}
@@ -19,6 +20,7 @@ Hooks.Clipboard = {
 
 Hooks.ChatPortal = ChatPortal
 Hooks.ChatScroll = ChatScroll
+Hooks.ChatSidebar = ChatSidebar
 Hooks.MentionInput = MentionInput
 
 export default Hooks

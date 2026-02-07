@@ -385,8 +385,9 @@ defmodule SocialScribeWeb.ChatComponents do
     ~H"""
     <div
       id="chat-sidebar-panel"
+      phx-hook="ChatSidebar"
       class={[
-        "fixed top-0 right-0 h-full w-[400px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col",
+        "fixed top-0 right-0 h-full w-[400px] bg-white shadow-2xl z-50 transform flex flex-col",
         @chat_open && "translate-x-0",
         !@chat_open && "translate-x-full"
       ]}
