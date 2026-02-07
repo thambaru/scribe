@@ -55,7 +55,7 @@ defmodule SocialScribeWeb.ChatComponents do
             :if={is_map(part)}
             class={[
               "inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-full text-xs font-medium",
-              @role == "user" && "bg-indigo-500 text-white",
+              @role == "user" && "bg-white",
               @role != "user" && "bg-indigo-100 text-indigo-700"
             ]}
           ><.crm_icon provider={part.provider} class="size-3" />@{part.firstname}</span><%= if !is_map(part), do: part %></span></div>

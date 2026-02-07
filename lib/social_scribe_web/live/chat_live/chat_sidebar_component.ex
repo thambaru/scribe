@@ -133,6 +133,14 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
               </div>
             </div>
 
+            <div :if={@messages != []} class="flex items-center gap-3 py-2">
+              <div class="flex-1 h-px bg-gray-200"></div>
+              <span class="text-xs text-gray-400 whitespace-nowrap">
+                {format_chat_timestamp(List.first(@messages).inserted_at)}
+              </span>
+              <div class="flex-1 h-px bg-gray-200"></div>
+            </div>
+
             <div :for={message <- @messages}>
               <.chat_message_bubble
                 role={message.role}
@@ -463,4 +471,12 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
   end
 
   defp format_sources(_), do: []
+
+  defp format_chat_timestamp(datetime) do
+    hour = Calendar.strftime(datetime, "%-I")
+    minute = Calendar.strftime(datetime, "%M")
+    ampm = Calendar.strftime(datetime, "%p") |> String.downcase()
+    date = Calendar.strftime(datetime, "%B %-d, %Y")
+    "#{hour}:#{minute}#{ampm} – #{date}"
+  end
 end
