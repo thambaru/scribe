@@ -5,6 +5,7 @@ defmodule SocialScribeWeb.ChatComponents do
   use Phoenix.Component
 
   import SocialScribeWeb.CoreComponents, only: [icon: 1]
+  import Phoenix.HTML, only: [raw: 1]
 
   @doc """
   Renders the floating chat button (bottom-right sparkles icon).
@@ -36,7 +37,8 @@ defmodule SocialScribeWeb.ChatComponents do
   def chat_message_bubble(assigns) do
     assigns =
       assigns
-      |> assign(:parsed_content, parse_content_with_mentions(assigns.content, assigns.mentioned_contacts))
+      |> assign(:parsed_content, parse_message_content(assigns.content, assigns.mentioned_contacts, assigns.role))
+      |> assign(:is_markdown, assigns.role == "assistant")
 
     ~H"""
     <div class={[
@@ -51,14 +53,23 @@ defmodule SocialScribeWeb.ChatComponents do
         @role == "assistant" && "bg-transparent text-gray-800 rounded-bl-md",
         @role == "system" && "bg-gray-50 text-gray-500 text-xs italic"
       ]}>
-        <div class="break-words"><span :for={part <- @parsed_content}><span
-            :if={is_map(part)}
-            class={[
-              "inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-full text-xs font-medium",
-              @role == "user" && "bg-white",
-              @role != "user" && "bg-indigo-100 text-indigo-700"
-            ]}
-          ><.crm_icon provider={part.provider} class="size-3" />{part.firstname}</span><%= if !is_map(part), do: part %></span></div>
+        <div class={[
+          "break-words",
+          @is_markdown && "prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0"
+        ]}>
+          <%= if @is_markdown do %>
+            <%= raw(@parsed_content) %>
+          <% else %>
+            <span :for={part <- @parsed_content}><span
+                :if={is_map(part)}
+                class={[
+                  "inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-full text-xs font-medium",
+                  @role == "user" && "bg-white",
+                  @role != "user" && "bg-indigo-100 text-indigo-700"
+                ]}
+              ><.crm_icon provider={part.provider} class="size-3" />{part.firstname}</span><%= if !is_map(part), do: part %></span>
+          <% end %>
+        </div>
         <.source_badges :if={@role == "assistant" && @sources != []} sources={@sources} />
       </div>
     </div>
@@ -214,6 +225,59 @@ defmodule SocialScribeWeb.ChatComponents do
   end
 
   # Helpers
+  @doc false
+  defp parse_message_content(content, mentioned_contacts, role) when is_binary(content) do
+    case role do
+      "assistant" ->
+        # Parse markdown for assistant messages
+        parse_markdown(content, mentioned_contacts)
+
+      _ ->
+        # Parse mentions for user/system messages
+        parse_content_with_mentions(content, mentioned_contacts)
+    end
+  end
+
+  defp parse_message_content(content, _, _), do: [to_string(content)]
+
+  @doc false
+  defp parse_markdown(content, mentioned_contacts) do
+    # Convert markdown to HTML using Earmark
+    case Earmark.as_html(content) do
+      {:ok, html, _} ->
+        # Process mentions in the HTML if needed
+        if mentioned_contacts != [] do
+          process_mentions_in_html(html, mentioned_contacts)
+        else
+          html
+        end
+
+      {:error, _, _} ->
+        # Fall back to plain text if markdown parsing fails
+        content
+    end
+  end
+
+  defp process_mentions_in_html(html, mentioned_contacts) do
+    # Build a map of @firstname to contact for quick lookup
+    mention_map =
+      mentioned_contacts
+      |> Enum.map(fn contact ->
+        firstname = Map.get(contact, :firstname, Map.get(contact, "firstname"))
+        {"@#{firstname}", contact}
+      end)
+      |> Map.new()
+
+    # Replace @mentions with styled spans
+    Enum.reduce(mention_map, html, fn {mention, contact}, acc ->
+      firstname = Map.get(contact, :firstname, Map.get(contact, "firstname"))
+
+      replacement = ~s(<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">#{firstname}</span>)
+
+      String.replace(acc, mention, replacement)
+    end)
+  end
+
   defp provider_atom(%{provider: p}) when is_atom(p), do: p
   defp provider_atom(%{provider: p}) when is_binary(p), do: String.to_existing_atom(p)
   defp provider_atom(%{"provider" => p}) when is_atom(p), do: p

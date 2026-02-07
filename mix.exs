@@ -37,6 +37,7 @@ defmodule SocialScribe.MixProject do
       {:igniter, "~> 0.5", only: [:dev]},
       {:mox, "~> 1.2", only: :test},
       {:stream_data, "~> 1.0", only: :test},
+      {:earmark, "~> 1.4"},
       {:timex, "~> 3.0"},
       {:tesla, "~> 1.14"},
       {:ueberauth_google, "~> 0.12.1"},
