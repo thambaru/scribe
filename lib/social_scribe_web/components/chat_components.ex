@@ -58,7 +58,7 @@ defmodule SocialScribeWeb.ChatComponents do
               @role == "user" && "bg-white",
               @role != "user" && "bg-indigo-100 text-indigo-700"
             ]}
-          ><.crm_icon provider={part.provider} class="size-3" />@{part.firstname}</span><%= if !is_map(part), do: part %></span></div>
+          ><.crm_icon provider={part.provider} class="size-3" />{part.firstname}</span><%= if !is_map(part), do: part %></span></div>
         <.source_badges :if={@role == "assistant" && @sources != []} sources={@sources} />
       </div>
     </div>

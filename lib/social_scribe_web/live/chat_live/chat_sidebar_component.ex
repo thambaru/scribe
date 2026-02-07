@@ -91,7 +91,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
           phx-value-tab="chat"
           phx-target={@myself}
           class={[
-            "px-3 py-1.5 text-sm font-medium rounded-full transition-colors",
+            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
             @active_tab == :chat && "bg-gray-100 text-gray-900",
             @active_tab != :chat && "text-gray-500 hover:text-gray-700"
           ]}
@@ -103,7 +103,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
           phx-value-tab="history"
           phx-target={@myself}
           class={[
-            "px-3 py-1.5 text-sm font-medium rounded-full transition-colors",
+            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
             @active_tab == :history && "bg-gray-100 text-gray-900",
             @active_tab != :history && "text-gray-500 hover:text-gray-700"
           ]}
@@ -215,7 +215,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
                     id="chat-send-btn"
                     type="submit"
                     disabled={@sending}
-                    class="w-9 h-9 rounded-xl bg-[#f0f5f5] text-[#b2b2b2] flex items-center justify-center hover:bg-[#d5e2fb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    class="w-9 h-9 rounded-xl bg-[#f0f5f5] text-[#b2b2b2] flex items-center justify-center hover:bg-[#d5e2fb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-bold"
                     aria-label="Send message"
                   >
                     <.icon name="hero-arrow-up" class="size-4" />
