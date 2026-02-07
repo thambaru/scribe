@@ -158,11 +158,11 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
             </div>
           </div>
 
-          <div class="shrink-0 mx-4 mb-3 mt-2 rounded-2xl border border-[#b7c7e8] bg-white p-3 shadow-[0_12px_24px_rgba(59,130,246,0.12)]">
+          <div class="shrink-0 mx-4 mb-3 mt-2 rounded-2xl border border-[#5689bd] bg-white p-3 shadow-[0_12px_24px_rgba(59,130,246,0.12)]">
             <div class="flex items-center justify-between mb-2">
               <button
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-full border border-[#c9d7f0] bg-[#eef4ff] px-3 py-1 text-xs font-medium text-[#2f5bd1]"
+                class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white-100 px-3 py-1 text-xs font-medium text-gray-500"
               >
                 <.icon name="hero-at-symbol" class="size-3" />
                 Add context
@@ -186,7 +186,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
                   phx-update="ignore"
                   contenteditable="true"
                   data-placeholder="Ask anything about your meetings"
-                  class="min-h-[72px] max-h-[140px] overflow-y-auto text-sm text-gray-700 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400"
+                  class="chat-mention-input min-h-[72px] max-h-[140px] overflow-y-auto text-sm text-gray-700 outline-none"
                   role="textbox"
                 >
                 </div>
@@ -204,9 +204,10 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
                     <.source_icons contacts={@mentioned_contacts} />
                   </div>
                   <button
+                    id="chat-send-btn"
                     type="submit"
                     disabled={@sending}
-                    class="w-9 h-9 rounded-full bg-[#e3ebfb] text-[#2f5bd1] flex items-center justify-center hover:bg-[#d5e2fb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    class="w-9 h-9 rounded-xl bg-[#f0f5f5] text-[#b2b2b2] flex items-center justify-center hover:bg-[#d5e2fb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     aria-label="Send message"
                   >
                     <.icon name="hero-arrow-up" class="size-4" />

@@ -62,8 +62,12 @@ Hooks.MentionInput = {
         this.lastCursorPos = 0
         this.lastMentionMatch = null
 
+        // Disable send button initially (input is empty)
+        this.updateSendButton()
+
         this.el.addEventListener("input", (e) => {
             this.handleInput()
+            this.updateSendButton()
         })
 
         this.el.addEventListener("keydown", (e) => {
@@ -84,6 +88,7 @@ Hooks.MentionInput = {
         this.handleEvent("clear_chat_input", () => {
             this.el.innerHTML = ""
             this.updateHiddenInput()
+            this.updateSendButton()
         })
     },
 
@@ -151,6 +156,7 @@ Hooks.MentionInput = {
             })
             
             this.updateHiddenInput()
+            this.updateSendButton()
         }
     },
 
@@ -228,6 +234,7 @@ Hooks.MentionInput = {
 
         this.el.focus()
         this.updateHiddenInput()
+        this.updateSendButton()
     },
 
     submitMessage() {
@@ -265,6 +272,19 @@ Hooks.MentionInput = {
             }
         })
         return text.replace(/\u00A0/g, " ").trim()
+    },
+
+    updateSendButton() {
+        const btn = document.getElementById("chat-send-btn")
+        if (btn) {
+            const isEmpty = this.getPlainText() === ""
+            btn.disabled = isEmpty
+            this.updatePlaceholderState(isEmpty)
+        }
+    },
+
+    updatePlaceholderState(isEmpty) {
+        this.el.dataset.empty = isEmpty ? "true" : "false"
     },
 
     getCursorPosition() {

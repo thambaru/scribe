@@ -47,8 +47,8 @@ defmodule SocialScribeWeb.ChatComponents do
     ]}>
       <div class={[
         "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm",
-        @role == "user" && "bg-indigo-600 text-white rounded-br-md",
-        @role == "assistant" && "bg-gray-100 text-gray-800 rounded-bl-md",
+        @role == "user" && "bg-[#f0f5f5] text-gray-800 rounded-br-md",
+        @role == "assistant" && "bg-transparent text-gray-800 rounded-bl-md",
         @role == "system" && "bg-gray-50 text-gray-500 text-xs italic"
       ]}>
         <div class="break-words"><span :for={part <- @parsed_content}><span
@@ -152,15 +152,18 @@ defmodule SocialScribeWeb.ChatComponents do
   attr :sources, :list, required: true
 
   def source_badges(assigns) do
+    providers =
+      assigns.sources
+      |> Enum.map(fn source -> Map.get(source, :provider, Map.get(source, "provider")) end)
+      |> Enum.uniq()
+
+    assigns = assign(assigns, :providers, providers)
+
     ~H"""
-    <div class="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-gray-200">
-      <span class="text-xs text-gray-400">Sources:</span>
-      <span
-        :for={source <- @sources}
-        class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-gray-50 text-gray-600"
-      >
-        <.crm_icon provider={source.provider} class="size-3" />
-        {source.name}
+    <div class="flex items-center gap-1.5 mt-2 pt-1.5">
+      <span class="text-xs text-gray-400">Sources</span>
+      <span class="flex items-center -space-x-1">
+        <.crm_icon :for={provider <- @providers} provider={provider} class="size-4" />
       </span>
     </div>
     """

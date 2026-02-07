@@ -3,3 +3,9 @@
 @import "tailwindcss/utilities";
 
 /* This file is for your main application CSS */
+
+.chat-mention-input[data-empty="true"]::before {
+	content: attr(data-placeholder);
+	display: block;
+	color: #9ca3af;
+}
