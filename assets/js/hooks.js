@@ -59,6 +59,9 @@ Hooks.ChatScroll = {
 
 Hooks.MentionInput = {
     mounted() {
+        this.lastCursorPos = 0
+        this.lastMentionMatch = null
+
         this.el.addEventListener("input", (e) => {
             this.handleInput()
         })
@@ -67,6 +70,8 @@ Hooks.MentionInput = {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
                 this.submitMessage()
+            } else if (e.key === "Backspace") {
+                this.handleBackspace(e)
             }
         })
 
@@ -92,7 +97,10 @@ Hooks.MentionInput = {
 
         if (mentionMatch) {
             const query = mentionMatch[1]
-            if (query.length >= 1) {
+            if (query.length >= 2) {
+                // Save cursor position and match for later pill insertion
+                this.lastCursorPos = cursorPos
+                this.lastMentionMatch = mentionMatch
                 this.pushEventTo(this.el, "mention_search", { query: query })
             }
         } else {
@@ -102,51 +110,121 @@ Hooks.MentionInput = {
         this.updateHiddenInput()
     },
 
-    insertMentionPill(firstname, provider) {
-        // Remove the @query text
-        const text = this.el.innerText
-        const cursorPos = this.getCursorPosition()
-        const beforeCursor = text.substring(0, cursorPos)
-        const mentionMatch = beforeCursor.match(/@(\S+)$/)
+    handleBackspace(e) {
+        const sel = window.getSelection()
+        if (!sel.rangeCount) return
 
-        if (mentionMatch) {
-            // Find and remove the @query text node
-            const range = window.getSelection().getRangeAt(0)
-            const startOffset = range.startOffset - mentionMatch[0].length
+        const range = sel.getRangeAt(0)
+        
+        // Only handle backspace if cursor is collapsed (no selection)
+        if (!range.collapsed) return
 
-            // Create pill span
-            const pill = document.createElement("span")
-            pill.contentEditable = "false"
-            pill.className = "inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium"
-            pill.setAttribute("data-mention", "true")
-            pill.setAttribute("data-provider", provider)
-            pill.textContent = `@${firstname}`
-
-            // Replace @query with pill
-            const sel = window.getSelection()
-            const node = sel.focusNode
-
-            if (node.nodeType === Node.TEXT_NODE) {
-                const before = node.textContent.substring(0, startOffset)
-                const after = node.textContent.substring(cursorPos)
-
-                const beforeNode = document.createTextNode(before)
-                const afterNode = document.createTextNode(after || "\u00A0")
-
-                const parent = node.parentNode
-                parent.insertBefore(beforeNode, node)
-                parent.insertBefore(pill, node)
-                parent.insertBefore(afterNode, node)
-                parent.removeChild(node)
-
-                // Place cursor after pill
-                const newRange = document.createRange()
-                newRange.setStart(afterNode, afterNode.textContent.length > 0 ? 1 : 0)
-                newRange.collapse(true)
-                sel.removeAllRanges()
-                sel.addRange(newRange)
-            }
+        // Check if there's a pill immediately before the cursor
+        let nodeBefore = null
+        
+        if (range.startOffset === 0 && range.startContainer.previousSibling) {
+            // At the start of a text node, check previous sibling
+            nodeBefore = range.startContainer.previousSibling
+        } else if (range.startContainer.nodeType === Node.ELEMENT_NODE) {
+            // Inside an element, check child before cursor
+            nodeBefore = range.startContainer.childNodes[range.startOffset - 1]
+        } else if (range.startOffset > 0) {
+            // Inside text node, not deleting a pill
+            return
         }
+
+        // Check if the node before is a mention pill
+        if (nodeBefore && nodeBefore.nodeType === Node.ELEMENT_NODE && 
+            nodeBefore.getAttribute && nodeBefore.getAttribute("data-mention") === "true") {
+            e.preventDefault()
+            
+            const firstname = nodeBefore.textContent.replace('@', '')
+            const provider = nodeBefore.getAttribute("data-provider")
+            
+            // Remove the pill
+            nodeBefore.remove()
+            
+            // Notify server to remove from mentioned_contacts
+            this.pushEventTo(this.el, "remove_mention", { 
+                firstname: firstname,
+                provider: provider 
+            })
+            
+            this.updateHiddenInput()
+        }
+    },
+
+    insertMentionPill(firstname, provider) {
+        if (!this.lastMentionMatch) {
+            // No saved mention context, can't insert pill
+            this.el.focus()
+            return
+        }
+
+        const mentionMatch = this.lastMentionMatch
+        const mentionLength = mentionMatch[0].length
+        const mentionStartPos = this.lastCursorPos - mentionLength
+
+        // Create pill span
+        const pill = document.createElement("span")
+        pill.contentEditable = "false"
+        pill.className = "inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium"
+        pill.setAttribute("data-mention", "true")
+        pill.setAttribute("data-provider", provider)
+        pill.textContent = `@${firstname}`
+
+        // Find the text node containing the @mention
+        let currentPos = 0
+        let targetNode = null
+        let nodeStartPos = 0
+
+        const walker = document.createTreeWalker(
+            this.el,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        )
+
+        while (walker.nextNode()) {
+            const node = walker.currentNode
+            const nodeLength = node.textContent.length
+
+            if (currentPos + nodeLength > mentionStartPos) {
+                targetNode = node
+                nodeStartPos = currentPos
+                break
+            }
+            currentPos += nodeLength
+        }
+
+        if (targetNode && targetNode.nodeType === Node.TEXT_NODE) {
+            const localStartPos = mentionStartPos - nodeStartPos
+            const localEndPos = localStartPos + mentionLength
+
+            const before = targetNode.textContent.substring(0, localStartPos)
+            const after = targetNode.textContent.substring(localEndPos)
+
+            const beforeNode = document.createTextNode(before)
+            const afterNode = document.createTextNode(after || "\u00A0")
+
+            const parent = targetNode.parentNode
+            parent.insertBefore(beforeNode, targetNode)
+            parent.insertBefore(pill, targetNode)
+            parent.insertBefore(afterNode, targetNode)
+            parent.removeChild(targetNode)
+
+            // Place cursor after pill
+            const range = document.createRange()
+            const sel = window.getSelection()
+            range.setStart(afterNode, Math.min(1, afterNode.textContent.length))
+            range.collapse(true)
+            sel.removeAllRanges()
+            sel.addRange(range)
+        }
+
+        // Clear saved state
+        this.lastMentionMatch = null
+        this.lastCursorPos = 0
 
         this.el.focus()
         this.updateHiddenInput()

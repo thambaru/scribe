@@ -32,6 +32,13 @@ defmodule SocialScribeWeb.ChatLive.ChatHandlers do
         conversation = SocialScribe.Chat.get_conversation!(conversation_id)
         history = Enum.map(conversation.messages, &Map.take(&1, [:role, :content]))
 
+        mentioned_contacts =
+          if mentioned_contacts == [] do
+            fallback_mentioned_contacts(conversation.messages)
+          else
+            mentioned_contacts
+          end
+
         case SocialScribe.Chat.ChatAi.ask(message, mentioned_contacts, history) do
           {:ok, response_text, sources} ->
             SocialScribe.Chat.add_message(conversation_id, %{
@@ -65,6 +72,17 @@ defmodule SocialScribeWeb.ChatLive.ChatHandlers do
         end
 
         {:noreply, socket}
+      end
+
+      defp fallback_mentioned_contacts(messages) do
+        messages
+        |> Enum.reverse()
+        |> Enum.find_value([], fn msg ->
+          if Map.get(msg, :role) == "user" do
+            contacts = Map.get(msg, :mentioned_contacts, [])
+            if contacts != [], do: contacts, else: nil
+          end
+        end)
       end
 
       def handle_event("toggle_chat_sidebar", _params, socket) do

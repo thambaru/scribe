@@ -34,6 +34,10 @@ defmodule SocialScribeWeb.ChatComponents do
   attr :sources, :list, default: []
 
   def chat_message_bubble(assigns) do
+    assigns =
+      assigns
+      |> assign(:parsed_content, parse_content_with_mentions(assigns.content, assigns.mentioned_contacts))
+
     ~H"""
     <div class={[
       "flex w-full mb-3",
@@ -47,7 +51,14 @@ defmodule SocialScribeWeb.ChatComponents do
         @role == "assistant" && "bg-gray-100 text-gray-800 rounded-bl-md",
         @role == "system" && "bg-gray-50 text-gray-500 text-xs italic"
       ]}>
-        <div class="whitespace-pre-wrap break-words">{@content}</div>
+        <div class="break-words"><span :for={part <- @parsed_content}><span
+            :if={is_map(part)}
+            class={[
+              "inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-full text-xs font-medium",
+              @role == "user" && "bg-indigo-500 text-white",
+              @role != "user" && "bg-indigo-100 text-indigo-700"
+            ]}
+          ><.crm_icon provider={part.provider} class="size-3" />@{part.firstname}</span><%= if !is_map(part), do: part %></span></div>
         <.source_badges :if={@role == "assistant" && @sources != []} sources={@sources} />
       </div>
     </div>
@@ -122,12 +133,12 @@ defmodule SocialScribeWeb.ChatComponents do
 
   def crm_icon(assigns) do
     ~H"""
-    <span :if={normalize_provider(@provider) == :hubspot} title="HubSpot" class={["inline-block", @class]}>
+    <span :if={normalize_provider(@provider) == :hubspot} title="HubSpot" class={["inline-block", "bg-gray-200 rounded-[10px]", @class]}>
       <svg viewBox="0 0 24 24" fill="currentColor" class={"text-orange-500 " <> @class}>
         <path d="M17.58 10.1V7.64a2.08 2.08 0 0 0 1.21-1.88v-.06A2.08 2.08 0 0 0 16.71 3.62h-.06A2.08 2.08 0 0 0 14.57 5.7v.06a2.08 2.08 0 0 0 1.21 1.88V10.1a5.33 5.33 0 0 0-2.4 1.18l-6.39-4.97a2.2 2.2 0 0 0 .06-.51 2.24 2.24 0 1 0-2.24 2.24c.35 0 .68-.09.98-.24l6.27 4.88a5.37 5.37 0 0 0 .14 6.06l-1.93 1.93a1.63 1.63 0 0 0-.47-.08 1.66 1.66 0 1 0 1.66 1.66 1.63 1.63 0 0 0-.08-.47l1.9-1.9a5.38 5.38 0 1 0 4.14-9.88zm-.93 7.64a2.54 2.54 0 1 1 0-5.08 2.54 2.54 0 0 1 0 5.08z" />
       </svg>
     </span>
-    <span :if={normalize_provider(@provider) == :salesforce} title="Salesforce" class={["inline-block", @class]}>
+    <span :if={normalize_provider(@provider) == :salesforce} title="Salesforce" class={["inline-block", "bg-gray-200 rounded-[10px]", @class]}>
       <svg viewBox="0 0 24 24" fill="currentColor" class={"text-[#00A1E0] " <> @class}>
         <path d="M10.05 5.43a4.35 4.35 0 0 1 3.37-1.6 4.39 4.39 0 0 1 4.1 2.87 3.65 3.65 0 0 1 1.47-.31 3.69 3.69 0 0 1 3.69 3.69 3.69 3.69 0 0 1-3.69 3.69h-.15l-.01.14a3.9 3.9 0 0 1-3.87 3.46 3.88 3.88 0 0 1-2.38-.82 4.67 4.67 0 0 1-3.54 1.63 4.68 4.68 0 0 1-4.44-3.19A3.43 3.43 0 0 1 3 11.73a3.43 3.43 0 0 1 2.79-3.37 4.07 4.07 0 0 1-.06-.72A4.14 4.14 0 0 1 9.87 3.5c.07 0 .13.01.18.01v-.01l.01.01-.01 1.92z" />
       </svg>
@@ -187,12 +198,12 @@ defmodule SocialScribeWeb.ChatComponents do
     <div
       id="chat-sidebar-panel"
       class={[
-        "fixed top-0 right-0 h-full w-[400px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col p-4",
+        "fixed top-0 right-0 h-full w-[400px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col",
         @chat_open && "translate-x-0",
         !@chat_open && "translate-x-full"
       ]}
     >
-      <div id="chat-sidebar-slot">
+      <div id="chat-sidebar-slot" class="flex flex-col flex-1 min-h-0">
         {render_slot(@inner_block)}
       </div>
     </div>
@@ -209,4 +220,35 @@ defmodule SocialScribeWeb.ChatComponents do
   defp normalize_provider(p) when is_atom(p), do: p
   defp normalize_provider(p) when is_binary(p), do: String.to_existing_atom(p)
   defp normalize_provider(_), do: :unknown
+
+  @doc false
+  defp parse_content_with_mentions(content, mentioned_contacts) when is_binary(content) do
+    # Build a map of @firstname to contact for quick lookup
+    mention_map =
+      mentioned_contacts
+      |> Enum.map(fn contact ->
+        firstname = Map.get(contact, :firstname, Map.get(contact, "firstname"))
+        {"@#{firstname}", contact}
+      end)
+      |> Map.new()
+
+    # Split content by @mentions - captures @word patterns
+    parts = Regex.split(~r/(@\w+)/, content, include_captures: true, trim: false)
+
+    Enum.map(parts, fn part ->
+      case Map.get(mention_map, part) do
+        nil ->
+          part
+        contact ->
+          provider = Map.get(contact, :provider, Map.get(contact, "provider"))
+          %{
+            firstname: Map.get(contact, :firstname, Map.get(contact, "firstname")),
+            provider: if(provider, do: normalize_provider(provider), else: :unknown)
+          }
+      end
+    end)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp parse_content_with_mentions(content, _), do: [to_string(content)]
 end

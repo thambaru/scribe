@@ -58,6 +58,17 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
   end
 
   @impl true
+  def update(assigns, socket) do
+    # Fallback clause for updates without current_user
+    socket =
+      assigns
+      |> Map.drop([:__changed__])
+      |> Enum.reduce(socket, fn {key, val}, acc -> assign(acc, key, val) end)
+
+    {:ok, socket}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="flex flex-col h-full" id={"chat-sidebar-#{@id}"}>
@@ -112,8 +123,8 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
 
       <%!-- Content --%>
       <%= if @active_tab == :chat do %>
-        <div class="flex-1 flex flex-col px-4 py-3">
-          <div class="flex-1 overflow-y-auto space-y-2" id="chat-messages-scroll" phx-hook="ChatScroll">
+        <div class="flex-1 flex flex-col min-h-0">
+          <div class="flex-1 overflow-y-auto space-y-2 px-4 py-3" id="chat-messages-scroll" phx-hook="ChatScroll">
             <div :if={@messages == []} class="flex items-center justify-center h-full">
               <div class="text-center text-gray-400">
                 <.icon name="hero-chat-bubble-left-right" class="size-10 mx-auto mb-2" />
@@ -147,13 +158,13 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
             </div>
           </div>
 
-          <div class="mt-4 rounded-2xl border border-[#b7c7e8] bg-white p-3 shadow-[0_12px_24px_rgba(59,130,246,0.12)]">
+          <div class="shrink-0 mx-4 mb-3 mt-2 rounded-2xl border border-[#b7c7e8] bg-white p-3 shadow-[0_12px_24px_rgba(59,130,246,0.12)]">
             <div class="flex items-center justify-between mb-2">
               <button
                 type="button"
                 class="inline-flex items-center gap-1.5 rounded-full border border-[#c9d7f0] bg-[#eef4ff] px-3 py-1 text-xs font-medium text-[#2f5bd1]"
               >
-                <.icon name="hero-plus" class="size-3" />
+                <.icon name="hero-at-symbol" class="size-3" />
                 Add context
               </button>
             </div>
@@ -172,6 +183,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
                   id="chat-mention-input"
                   phx-hook="MentionInput"
                   phx-target={@myself}
+                  phx-update="ignore"
                   contenteditable="true"
                   data-placeholder="Ask anything about your meetings"
                   class="min-h-[72px] max-h-[140px] overflow-y-auto text-sm text-gray-700 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400"
@@ -262,13 +274,19 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
 
   @impl true
   def handle_event("mention_search", %{"query" => query}, socket) do
-    socket =
-      socket
-      |> assign(:mention_query, query)
-      |> assign(:searching_contacts, true)
+    query = String.trim(query)
 
-    send(self(), {:chat_contact_search, query, socket.assigns.current_user.id})
-    {:noreply, socket}
+    if String.length(query) >= 2 do
+      socket =
+        socket
+        |> assign(:mention_query, query)
+        |> assign(:searching_contacts, true)
+
+      send(self(), {:chat_contact_search, query, socket.assigns.current_user.id})
+      {:noreply, socket}
+    else
+      {:noreply, assign(socket, :mention_query, query)}
+    end
   end
 
   @impl true
@@ -307,6 +325,20 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
       })
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("remove_mention", %{"firstname" => firstname, "provider" => provider}, socket) do
+    mentioned =
+      Enum.reject(socket.assigns.mentioned_contacts, fn contact ->
+        # Match on firstname and provider (handle both string and atom)
+        provider_match =
+          to_string(contact.provider) == to_string(provider)
+
+        contact.firstname == firstname && provider_match
+      end)
+
+    {:noreply, assign(socket, :mentioned_contacts, mentioned)}
   end
 
   @impl true
