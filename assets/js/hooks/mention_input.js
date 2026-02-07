@@ -34,12 +34,39 @@ const MentionInput = {
     },
 
     handleInput() {
-        const text = this.el.innerText
+        // Skip if a pill was just removed — the input event fires from DOM changes
+        // but there's nothing meaningful to process
+        if (this._pillJustRemoved) {
+            this._pillJustRemoved = false
+            this.updateHiddenInput()
+            return
+        }
+
         const cursorPos = this.getCursorPosition()
-        const beforeCursor = text.substring(0, cursorPos)
+
+        // Build text from only real text nodes (not pill contents) to avoid
+        // pill text like "@Firstname" being matched as a mention pattern
+        let textBeforeCursor = ""
+        let pos = 0
+        const walker = document.createTreeWalker(this.el, NodeFilter.SHOW_TEXT, null, false)
+        while (walker.nextNode()) {
+            const node = walker.currentNode
+            // Skip text nodes inside pills
+            if (node.parentElement && node.parentElement.closest && node.parentElement.closest("[data-mention]")) {
+                continue
+            }
+            const nodeLen = node.textContent.length
+            if (pos + nodeLen <= cursorPos) {
+                textBeforeCursor += node.textContent
+            } else {
+                textBeforeCursor += node.textContent.substring(0, cursorPos - pos)
+            }
+            pos += nodeLen
+            if (pos >= cursorPos) break
+        }
 
         // Check for @mention pattern: @ followed by at least 1 non-space char
-        const mentionMatch = beforeCursor.match(/@(\S+)$/)
+        const mentionMatch = textBeforeCursor.match(/@(\S+)$/)
 
         if (mentionMatch) {
             const query = mentionMatch[1]
@@ -65,39 +92,145 @@ const MentionInput = {
         // Only handle backspace if cursor is collapsed (no selection)
         if (!range.collapsed) return
 
-        // Check if there's a pill immediately before the cursor
-        let nodeBefore = null
+        // Resolve the pill (if any) immediately before the cursor, plus
+        // any spacer text node sitting between the cursor and the pill.
+        const { pill, spacer } = this.findPillBeforeCursor(range)
 
-        if (range.startOffset === 0 && range.startContainer.previousSibling) {
-            // At the start of a text node, check previous sibling
-            nodeBefore = range.startContainer.previousSibling
-        } else if (range.startContainer.nodeType === Node.ELEMENT_NODE) {
-            // Inside an element, check child before cursor
-            nodeBefore = range.startContainer.childNodes[range.startOffset - 1]
-        } else if (range.startOffset > 0) {
-            // Inside text node, not deleting a pill
-            return
+        if (!pill) return // No pill — let the browser handle normal backspace
+
+        e.preventDefault()
+
+        const firstname = pill.getAttribute("data-firstname") || pill.textContent.replace("@", "")
+        const provider = pill.getAttribute("data-provider")
+
+        // Determine a stable insertion point for the cursor anchor.
+        // We grab references BEFORE removing anything so the DOM is still intact.
+        const prevSibling = pill.previousSibling
+
+        // Remove the spacer first (if it's a separate node from pill's previousSibling)
+        if (spacer && spacer !== prevSibling) {
+            spacer.remove()
         }
 
-        // Check if the node before is a mention pill
-        if (nodeBefore && nodeBefore.nodeType === Node.ELEMENT_NODE &&
-            nodeBefore.getAttribute && nodeBefore.getAttribute("data-mention") === "true") {
-            e.preventDefault()
+        // Remove the pill itself
+        pill.remove()
 
-            const firstname = nodeBefore.getAttribute("data-firstname") || nodeBefore.textContent.replace('@', '')
-            const provider = nodeBefore.getAttribute("data-provider")
+        // Flag to prevent handleInput from processing the DOM mutation
+        this._pillJustRemoved = true
 
-            // Remove the pill
-            nodeBefore.remove()
+        // Place a cursor anchor. We deliberately avoid a global cleanup —
+        // only the nodes associated with this pill were removed.
+        const cursorAnchor = document.createTextNode("\u200B")
 
-            // Notify server to remove from mentioned_contacts
-            this.pushEventTo(this.el, "remove_mention", {
-                firstname: firstname,
-                provider: provider
-            })
+        if (prevSibling && this.el.contains(prevSibling)) {
+            // If the previous sibling is a text node, merge the anchor into it
+            // to avoid accumulating orphan zero-width-space nodes.
+            if (prevSibling.nodeType === Node.TEXT_NODE) {
+                // Append the ZWS to the existing text node and place cursor at end
+                prevSibling.after(cursorAnchor)
+            } else {
+                prevSibling.after(cursorAnchor)
+            }
+        } else if (this.el.firstChild) {
+            this.el.insertBefore(cursorAnchor, this.el.firstChild)
+        } else {
+            this.el.appendChild(cursorAnchor)
+        }
 
-            this.updateHiddenInput()
-            this.updateSendButton()
+        // Set caret into the anchor node
+        const newRange = document.createRange()
+        newRange.setStart(cursorAnchor, 1)
+        newRange.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(newRange)
+
+        // Remove stray <br>s that contenteditable may leave behind,
+        // but do NOT remove spacer text nodes belonging to other pills.
+        this.removeStrayBRs()
+
+        // Notify server
+        this.pushEventTo(this.el, "remove_mention", {
+            firstname: firstname,
+            provider: provider
+        })
+        this.pushEventTo(this.el, "close_mention_dropdown", {})
+
+        this.updateHiddenInput()
+        this.updateSendButton()
+    },
+
+    // Walk backwards from the cursor to find a mention pill.
+    // Returns { pill, spacer } where spacer is a whitespace-only text node
+    // sitting between the cursor position and the pill (may be null).
+    findPillBeforeCursor(range) {
+        const container = range.startContainer
+        const offset = range.startOffset
+
+        // Case 1: Cursor is inside a text node
+        if (container.nodeType === Node.TEXT_NODE) {
+            const textBefore = container.textContent.substring(0, offset)
+
+            // If there's real (non-whitespace) text before the cursor,
+            // the user is typing in normal text — not adjacent to a pill.
+            if (textBefore.replace(/[\u00A0\u200B]/g, "").length > 0) {
+                return { pill: null, spacer: null }
+            }
+
+            // The text before cursor is empty or only whitespace/ZWS.
+            // Check if the previous sibling (or the node before the spacer) is a pill.
+            let candidate = container.previousSibling
+            let spacerNode = (offset > 0 || textBefore.length > 0) ? container : null
+
+            // If offset is 0 and the text node is empty, the spacer is the node itself
+            // but only if it will be consumed. If offset > 0 we're inside a spacer.
+            if (!candidate) {
+                return { pill: null, spacer: null }
+            }
+
+            if (this.isPill(candidate)) {
+                return { pill: candidate, spacer: spacerNode }
+            }
+
+            return { pill: null, spacer: null }
+        }
+
+        // Case 2: Cursor is at an element-level offset (e.g. directly inside this.el)
+        if (container.nodeType === Node.ELEMENT_NODE) {
+            const nodeBefore = container.childNodes[offset - 1]
+            if (!nodeBefore) return { pill: null, spacer: null }
+
+            if (this.isPill(nodeBefore)) {
+                return { pill: nodeBefore, spacer: null }
+            }
+
+            // The node before might be a spacer text node; look one more step back.
+            if (nodeBefore.nodeType === Node.TEXT_NODE &&
+                nodeBefore.textContent.replace(/[\u00A0\u200B]/g, "").trim() === "") {
+                const candidate = container.childNodes[offset - 2]
+                if (candidate && this.isPill(candidate)) {
+                    return { pill: candidate, spacer: nodeBefore }
+                }
+            }
+
+            return { pill: null, spacer: null }
+        }
+
+        return { pill: null, spacer: null }
+    },
+
+    isPill(node) {
+        return node &&
+            node.nodeType === Node.ELEMENT_NODE &&
+            node.getAttribute &&
+            node.getAttribute("data-mention") === "true"
+    },
+
+    removeStrayBRs() {
+        const children = Array.from(this.el.childNodes)
+        for (const child of children) {
+            if (child.nodeName === "BR") {
+                child.remove()
+            }
         }
     },
 
@@ -233,7 +366,7 @@ const MentionInput = {
                 text += node.textContent
             }
         })
-        return text.replace(/\u00A0/g, " ").trim()
+        return text.replace(/[\u00A0\u200B]/g, " ").trim()
     },
 
     updateSendButton() {

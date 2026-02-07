@@ -4,8 +4,15 @@
 
 /* This file is for your main application CSS */
 
+.chat-mention-input {
+	position: relative;
+}
+
 .chat-mention-input[data-empty="true"]::before {
 	content: attr(data-placeholder);
-	display: block;
 	color: #9ca3af;
+	pointer-events: none;
+	position: absolute;
+	top: 0;
+	left: 0;
 }
