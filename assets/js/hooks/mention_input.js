@@ -84,7 +84,7 @@ const MentionInput = {
             nodeBefore.getAttribute && nodeBefore.getAttribute("data-mention") === "true") {
             e.preventDefault()
 
-            const firstname = nodeBefore.textContent.replace('@', '')
+            const firstname = nodeBefore.getAttribute("data-firstname") || nodeBefore.textContent.replace('@', '')
             const provider = nodeBefore.getAttribute("data-provider")
 
             // Remove the pill
@@ -101,6 +101,19 @@ const MentionInput = {
         }
     },
 
+    getCrmIconSvg(provider) {
+        if (provider === "hubspot") {
+            return `<svg viewBox="0 0 24 24" fill="currentColor" class="text-orange-500 size-2.5" style="width:10px;height:10px;">
+                <path d="M17.58 10.1V7.64a2.08 2.08 0 0 0 1.21-1.88v-.06A2.08 2.08 0 0 0 16.71 3.62h-.06A2.08 2.08 0 0 0 14.57 5.7v.06a2.08 2.08 0 0 0 1.21 1.88V10.1a5.33 5.33 0 0 0-2.4 1.18l-6.39-4.97a2.2 2.2 0 0 0 .06-.51 2.24 2.24 0 1 0-2.24 2.24c.35 0 .68-.09.98-.24l6.27 4.88a5.37 5.37 0 0 0 .14 6.06l-1.93 1.93a1.63 1.63 0 0 0-.47-.08 1.66 1.66 0 1 0 1.66 1.66 1.63 1.63 0 0 0-.08-.47l1.9-1.9a5.38 5.38 0 1 0 4.14-9.88zm-.93 7.64a2.54 2.54 0 1 1 0-5.08 2.54 2.54 0 0 1 0 5.08z"/>
+            </svg>`
+        } else if (provider === "salesforce") {
+            return `<svg viewBox="0 0 24 24" fill="currentColor" class="text-[#00A1E0] size-2.5" style="width:10px;height:10px;">
+                <path d="M10.05 5.43a4.35 4.35 0 0 1 3.37-1.6 4.39 4.39 0 0 1 4.1 2.87 3.65 3.65 0 0 1 1.47-.31 3.69 3.69 0 0 1 3.69 3.69 3.69 3.69 0 0 1-3.69 3.69h-.15l-.01.14a3.9 3.9 0 0 1-3.87 3.46 3.88 3.88 0 0 1-2.38-.82 4.67 4.67 0 0 1-3.54 1.63 4.68 4.68 0 0 1-4.44-3.19A3.43 3.43 0 0 1 3 11.73a3.43 3.43 0 0 1 2.79-3.37 4.07 4.07 0 0 1-.06-.72A4.14 4.14 0 0 1 9.87 3.5c.07 0 .13.01.18.01v-.01l.01.01-.01 1.92z"/>
+            </svg>`
+        }
+        return ""
+    },
+
     insertMentionPill(firstname, provider) {
         if (!this.lastMentionMatch) {
             // No saved mention context, can't insert pill
@@ -112,13 +125,20 @@ const MentionInput = {
         const mentionLength = mentionMatch[0].length
         const mentionStartPos = this.lastCursorPos - mentionLength
 
-        // Create pill span
+        const initial = firstname ? firstname.charAt(0).toUpperCase() : "?"
+
+        // Create pill span with avatar + CRM badge
         const pill = document.createElement("span")
         pill.contentEditable = "false"
-        pill.className = "inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium"
+        pill.className = "inline-flex items-center gap-1 px-1 pr-2 py-0.5 mx-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium align-middle"
         pill.setAttribute("data-mention", "true")
         pill.setAttribute("data-provider", provider)
-        pill.textContent = `@${firstname}`
+        pill.setAttribute("data-firstname", firstname)
+
+        pill.innerHTML = `<span style="position:relative;display:inline-flex;flex-shrink:0;">
+            <span style="width:20px;height:20px;border-radius:9999px;background:#c7d2fe;color:#4338ca;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;line-height:1;">${initial}</span>
+            <span style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:9999px;background:white;display:flex;align-items:center;justify-content:center;">${this.getCrmIconSvg(provider)}</span>
+        </span>@${firstname}`
 
         // Find the text node containing the @mention
         let currentPos = 0
@@ -207,7 +227,8 @@ const MentionInput = {
             if (node.nodeType === Node.TEXT_NODE) {
                 text += node.textContent
             } else if (node.getAttribute && node.getAttribute("data-mention") === "true") {
-                text += node.textContent
+                const firstname = node.getAttribute("data-firstname")
+                text += firstname ? `@${firstname}` : node.textContent
             } else {
                 text += node.textContent
             }

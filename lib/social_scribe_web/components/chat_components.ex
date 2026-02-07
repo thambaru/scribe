@@ -63,11 +63,18 @@ defmodule SocialScribeWeb.ChatComponents do
             <span :for={part <- @parsed_content}><span
                 :if={is_map(part)}
                 class={[
-                  "inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-full text-xs font-medium",
+                  "inline-flex items-center gap-1 px-1 pr-2 py-0.5 mx-0.5 rounded-full text-xs font-medium align-middle",
                   @role == "user" && "bg-white",
                   @role != "user" && "bg-indigo-100 text-indigo-700"
                 ]}
-              ><.crm_icon provider={part.provider} class="size-3" />{part.firstname}</span><%= if !is_map(part), do: part %></span>
+              ><span class="relative inline-flex flex-shrink-0">
+                  <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-semibold leading-none">
+                    {String.first(part.firstname || "?")}
+                  </span>
+                  <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-white flex items-center justify-center">
+                    <.crm_icon provider={part.provider} class="size-2.5" />
+                  </span>
+                </span>{part.firstname}</span><%= if !is_map(part), do: part %></span>
           <% end %>
         </div>
         <.source_badges :if={@role == "assistant" && @sources != []} sources={@sources} />
@@ -82,10 +89,20 @@ defmodule SocialScribeWeb.ChatComponents do
   attr :contact, :map, required: true
 
   def mention_pill(assigns) do
+    firstname = Map.get(assigns.contact, :firstname, Map.get(assigns.contact, "firstname", "Contact"))
+    assigns = assign(assigns, :firstname, firstname)
+
     ~H"""
-    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
-      <.crm_icon provider={provider_atom(@contact)} class="size-3" />
-      <span>{Map.get(@contact, :firstname, Map.get(@contact, "firstname", "Contact"))}</span>
+    <span class="inline-flex items-center gap-1 px-1 pr-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
+      <span class="relative inline-flex flex-shrink-0">
+        <span class="w-5 h-5 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center text-[10px] font-semibold leading-none">
+          {String.first(@firstname || "?")}
+        </span>
+        <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-white flex items-center justify-center">
+          <.crm_icon provider={provider_atom(@contact)} class="size-2.5" />
+        </span>
+      </span>
+      <span>{@firstname}</span>
     </span>
     """
   end
@@ -405,15 +422,30 @@ defmodule SocialScribeWeb.ChatComponents do
       end)
       |> Map.new()
 
-    # Replace @mentions with styled spans
+    # Replace @mentions with styled spans showing avatar + CRM badge
     Enum.reduce(mention_map, html, fn {mention, contact}, acc ->
       firstname = Map.get(contact, :firstname, Map.get(contact, "firstname"))
+      initial = if firstname, do: String.first(firstname), else: "?"
+      provider = Map.get(contact, :provider, Map.get(contact, "provider", "unknown"))
+      provider_str = to_string(provider)
 
-      replacement = ~s(<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">#{firstname}</span>)
+      crm_svg = crm_icon_svg(provider_str)
+
+      replacement = ~s(<span class="inline-flex items-center gap-1 px-1 pr-2 py-0.5 mx-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 align-middle"><span style="position:relative;display:inline-flex;flex-shrink:0;"><span style="width:20px;height:20px;border-radius:9999px;background:#c7d2fe;color:#4338ca;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;line-height:1;">#{initial}</span><span style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:9999px;background:white;display:flex;align-items:center;justify-content:center;">#{crm_svg}</span></span>#{firstname}</span>)
 
       String.replace(acc, mention, replacement)
     end)
   end
+
+  defp crm_icon_svg("hubspot") do
+    ~s(<svg viewBox="0 0 24 24" fill="currentColor" style="width:10px;height:10px;color:#f97316;"><path d="M17.58 10.1V7.64a2.08 2.08 0 0 0 1.21-1.88v-.06A2.08 2.08 0 0 0 16.71 3.62h-.06A2.08 2.08 0 0 0 14.57 5.7v.06a2.08 2.08 0 0 0 1.21 1.88V10.1a5.33 5.33 0 0 0-2.4 1.18l-6.39-4.97a2.2 2.2 0 0 0 .06-.51 2.24 2.24 0 1 0-2.24 2.24c.35 0 .68-.09.98-.24l6.27 4.88a5.37 5.37 0 0 0 .14 6.06l-1.93 1.93a1.63 1.63 0 0 0-.47-.08 1.66 1.66 0 1 0 1.66 1.66 1.63 1.63 0 0 0-.08-.47l1.9-1.9a5.38 5.38 0 1 0 4.14-9.88zm-.93 7.64a2.54 2.54 0 1 1 0-5.08 2.54 2.54 0 0 1 0 5.08z"/></svg>)
+  end
+
+  defp crm_icon_svg("salesforce") do
+    ~s(<svg viewBox="0 0 24 24" fill="currentColor" style="width:10px;height:10px;color:#00A1E0;"><path d="M10.05 5.43a4.35 4.35 0 0 1 3.37-1.6 4.39 4.39 0 0 1 4.1 2.87 3.65 3.65 0 0 1 1.47-.31 3.69 3.69 0 0 1 3.69 3.69 3.69 3.69 0 0 1-3.69 3.69h-.15l-.01.14a3.9 3.9 0 0 1-3.87 3.46 3.88 3.88 0 0 1-2.38-.82 4.67 4.67 0 0 1-3.54 1.63 4.68 4.68 0 0 1-4.44-3.19A3.43 3.43 0 0 1 3 11.73a3.43 3.43 0 0 1 2.79-3.37 4.07 4.07 0 0 1-.06-.72A4.14 4.14 0 0 1 9.87 3.5c.07 0 .13.01.18.01v-.01l.01.01-.01 1.92z"/></svg>)
+  end
+
+  defp crm_icon_svg(_), do: ""
 
   defp provider_atom(%{provider: p}) when is_atom(p), do: p
   defp provider_atom(%{provider: p}) when is_binary(p), do: String.to_existing_atom(p)
