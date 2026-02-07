@@ -7,24 +7,28 @@ defmodule SocialScribe.Chat.ChatAi do
 
   alias SocialScribe.GeminiClient
   alias SocialScribe.Accounts
+  alias SocialScribe.Meetings
   alias SocialScribe.HubspotApiBehaviour, as: HubspotApi
   alias SocialScribe.SalesforceApiBehaviour, as: SalesforceApi
 
   @doc """
-  Processes a user question with optional CRM contact context.
+  Processes a user question with optional CRM contact and meeting context.
 
   Returns `{:ok, response_text, sources}` where sources is a list
-  of `%{provider: atom, name: string}` maps indicating which CRMs were queried.
+  of `%{provider: atom, name: string}` maps indicating which CRMs/meetings were queried.
   """
-  def ask(user_message, mentioned_contacts, conversation_history) do
+  def ask(user_message, mentioned_contacts, conversation_history, mentioned_meetings \\ []) do
     # Fetch full contact data from CRMs for mentioned contacts
     {contact_context, sources} = fetch_contact_context(mentioned_contacts)
 
-    prompt = build_prompt(user_message, contact_context, conversation_history)
+    # Fetch meeting context for mentioned meetings
+    {meeting_context, meeting_sources} = fetch_meeting_context(mentioned_meetings)
+
+    prompt = build_prompt(user_message, contact_context, meeting_context, conversation_history)
 
     case GeminiClient.generate(prompt) do
       {:ok, response_text} ->
-        {:ok, response_text, sources}
+        {:ok, response_text, sources ++ meeting_sources}
 
       {:error, reason} ->
         {:error, reason}
@@ -66,6 +70,48 @@ defmodule SocialScribe.Chat.ChatAi do
   end
 
   defp fetch_contact_context(_), do: {"", []}
+
+  defp fetch_meeting_context(mentioned_meetings) when is_list(mentioned_meetings) and mentioned_meetings != [] do
+    meeting_texts =
+      mentioned_meetings
+      |> Enum.map(fn meeting_ref ->
+        meeting_id = Map.get(meeting_ref, :id, Map.get(meeting_ref, "id"))
+
+        case Meetings.get_meeting_with_details(meeting_id) do
+          nil ->
+            nil
+
+          meeting ->
+            case Meetings.generate_prompt_for_meeting(meeting) do
+              {:ok, prompt_text} -> prompt_text
+              {:error, _} -> format_basic_meeting(meeting)
+            end
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    sources =
+      mentioned_meetings
+      |> Enum.map(fn meeting_ref ->
+        %{
+          provider: :meeting,
+          name: Map.get(meeting_ref, :title, Map.get(meeting_ref, "title", "Meeting"))
+        }
+      end)
+
+    {Enum.join(meeting_texts, "\n\n"), sources}
+  end
+
+  defp fetch_meeting_context(_), do: {"", []}
+
+  defp format_basic_meeting(meeting) do
+    """
+    [Meeting]
+      - Title: #{meeting.title}
+      - Recorded at: #{meeting.recorded_at}
+      - Duration: #{meeting.duration_seconds} seconds
+    """
+  end
 
   defp fetch_single_contact(contact) do
     provider = Map.get(contact, :provider, Map.get(contact, "provider"))
@@ -112,7 +158,7 @@ defmodule SocialScribe.Chat.ChatAi do
     """
   end
 
-  defp build_prompt(user_message, contact_context, conversation_history) do
+  defp build_prompt(user_message, contact_context, meeting_context, conversation_history) do
     history_text =
       conversation_history
       |> Enum.map(fn msg ->
@@ -123,14 +169,23 @@ defmodule SocialScribe.Chat.ChatAi do
       |> Enum.join("\n")
 
     """
-    You are a helpful CRM assistant for a business professional. You help answer questions about their contacts and CRM data.
+    You are a helpful CRM assistant for a business professional. You help answer questions about their contacts, CRM data, and meetings.
 
-    Be concise, professional, and helpful. If you have contact data available, reference it specifically. If you don't have enough information to answer a question, say so clearly.
+    Be concise, professional, and helpful. If you have contact data or meeting data available, reference it specifically. If you don't have enough information to answer a question, say so clearly.
 
     #{if contact_context != "" do
       """
       CONTACT DATA:
       #{contact_context}
+      """
+    else
+      ""
+    end}
+
+    #{if meeting_context != "" do
+      """
+      MEETING DATA:
+      #{meeting_context}
       """
     else
       ""

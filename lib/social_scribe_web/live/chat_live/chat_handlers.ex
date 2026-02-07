@@ -25,8 +25,36 @@ defmodule SocialScribeWeb.ChatLive.ChatHandlers do
         {:noreply, socket}
       end
 
+      def handle_info({:chat_meeting_search, query, user_id, page}, socket) do
+        {:ok, results, has_more} =
+          SocialScribe.Chat.MeetingSearch.search(user_id, query, page: page)
+
+        send_update(SocialScribeWeb.ChatLive.ChatSidebarComponent,
+          id: "chat-sidebar",
+          meeting_search_results: results,
+          searching_meetings: false,
+          meeting_has_more: has_more
+        )
+
+        {:noreply, socket}
+      end
+
+      def handle_info({:chat_meeting_list, user_id, page}, socket) do
+        {:ok, results, has_more} =
+          SocialScribe.Chat.MeetingSearch.list_recent(user_id, page: page)
+
+        send_update(SocialScribeWeb.ChatLive.ChatSidebarComponent,
+          id: "chat-sidebar",
+          meeting_search_results: results,
+          searching_meetings: false,
+          meeting_has_more: has_more
+        )
+
+        {:noreply, socket}
+      end
+
       def handle_info(
-            {:chat_ask_ai, message, mentioned_contacts, conversation_id},
+            {:chat_ask_ai, message, mentioned_contacts, conversation_id, mentioned_meetings},
             socket
           ) do
         conversation = SocialScribe.Chat.get_conversation!(conversation_id)
@@ -39,7 +67,14 @@ defmodule SocialScribeWeb.ChatLive.ChatHandlers do
             mentioned_contacts
           end
 
-        case SocialScribe.Chat.ChatAi.ask(message, mentioned_contacts, history) do
+        mentioned_meetings =
+          if mentioned_meetings == [] do
+            fallback_mentioned_meetings(conversation.messages)
+          else
+            mentioned_meetings
+          end
+
+        case SocialScribe.Chat.ChatAi.ask(message, mentioned_contacts, history, mentioned_meetings) do
           {:ok, response_text, sources} ->
             SocialScribe.Chat.add_message(conversation_id, %{
               role: "assistant",
@@ -81,6 +116,17 @@ defmodule SocialScribeWeb.ChatLive.ChatHandlers do
           if Map.get(msg, :role) == "user" do
             contacts = Map.get(msg, :mentioned_contacts, [])
             if contacts != [], do: contacts, else: nil
+          end
+        end)
+      end
+
+      defp fallback_mentioned_meetings(messages) do
+        messages
+        |> Enum.reverse()
+        |> Enum.find_value([], fn msg ->
+          if Map.get(msg, :role) == "user" do
+            meetings = Map.get(msg, :mentioned_meetings, [])
+            if meetings != [], do: meetings, else: nil
           end
         end)
       end
