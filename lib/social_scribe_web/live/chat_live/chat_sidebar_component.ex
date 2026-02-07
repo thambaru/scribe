@@ -23,6 +23,15 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
       |> assign(:sending, false)
       |> assign(:conversations, [])
       |> assign(:current_conversation, nil)
+      # Meeting context state
+      |> assign(:context_menu_open, false)
+      |> assign(:context_type, nil)
+      |> assign(:meeting_search_query, "")
+      |> assign(:meeting_search_results, [])
+      |> assign(:searching_meetings, false)
+      |> assign(:mentioned_meetings, [])
+      |> assign(:meeting_search_page, 0)
+      |> assign(:meeting_has_more, false)
 
     {:ok, socket}
   end
@@ -32,11 +41,29 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
     socket = assign(socket, :current_user, user)
     socket = assign(socket, :id, assigns.id)
 
+    # Handle meeting search result appending for load-more
+    {meeting_results, assigns} =
+      if Map.get(assigns, :meeting_search_append) do
+        results = Map.get(assigns, :meeting_search_results, [])
+        existing = socket.assigns[:meeting_search_results] || []
+        {existing ++ results, Map.drop(assigns, [:meeting_search_results, :meeting_search_append])}
+      else
+        {nil, assigns}
+      end
+
     # Merge incoming assigns (from send_update)
     socket =
       assigns
       |> Map.drop([:current_user, :id, :__changed__])
       |> Enum.reduce(socket, fn {key, val}, acc -> assign(acc, key, val) end)
+
+    # Apply appended meeting results if applicable
+    socket =
+      if meeting_results do
+        assign(socket, :meeting_search_results, meeting_results)
+      else
+        socket
+      end
 
     # Initialize conversation on first load
     socket =
@@ -168,20 +195,46 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
 
           <div class="shrink-0 mx-4 mb-3 mt-2 rounded-2xl border border-[#5689bd] bg-white p-3 shadow-[0_12px_24px_rgba(59,130,246,0.12)]">
             <div class="flex items-center justify-between mb-2">
-              <button
-                type="button"
-                class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white-100 px-3 py-1 text-xs font-medium text-gray-500"
-              >
-                <.icon name="hero-at-symbol" class="size-3" />
-                Add context
-              </button>
+              <div class="relative">
+                <button
+                  type="button"
+                  phx-click="toggle_context_menu"
+                  phx-target={@myself}
+                  class={[
+                    "inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium transition-colors",
+                    @context_menu_open && "border-indigo-300 bg-indigo-50 text-indigo-600",
+                    !@context_menu_open && "border-gray-300 bg-white text-gray-500 hover:border-gray-400"
+                  ]}
+                >
+                  <.icon name="hero-plus-circle" class="size-3" />
+                  Add context
+                </button>
+                <.context_type_picker :if={@context_menu_open && @context_type == nil} target={@myself} />
+              </div>
+            </div>
+
+            <%!-- Meeting pills --%>
+            <div :if={@mentioned_meetings != []} class="flex flex-wrap gap-1 mb-2">
+              <.meeting_pill :for={meeting <- @mentioned_meetings} meeting={meeting} target={@myself} />
             </div>
 
             <div class="relative">
+              <%!-- Contact mention dropdown (triggered by @mention in input) --%>
               <div :if={@mention_query != nil} class="relative">
                 <.mention_dropdown
                   results={@mention_results}
                   searching={@searching_contacts}
+                  target={@myself}
+                />
+              </div>
+
+              <%!-- Meeting search dropdown (triggered by Add context > Meetings) --%>
+              <div :if={@context_type == :meetings} class="relative">
+                <.meeting_dropdown
+                  results={@meeting_search_results}
+                  searching={@searching_meetings}
+                  has_more={@meeting_has_more}
+                  query={@meeting_search_query}
                   target={@myself}
                 />
               </div>
@@ -205,11 +258,17 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
                   id="chat-mentions-hidden"
                   value={Jason.encode!(@mentioned_contacts)}
                 />
+                <input
+                  type="hidden"
+                  name="mentioned_meetings"
+                  id="chat-meetings-hidden"
+                  value={Jason.encode!(@mentioned_meetings)}
+                />
 
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2 text-xs text-gray-400">
                     <span>Sources</span>
-                    <.source_icons contacts={@mentioned_contacts} />
+                    <.source_icons contacts={@mentioned_contacts} meetings={@mentioned_meetings} />
                   </div>
                   <button
                     id="chat-send-btn"
@@ -310,6 +369,127 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
   end
 
   @impl true
+  def handle_event("toggle_context_menu", _params, socket) do
+    if socket.assigns.context_menu_open do
+      # Close everything
+      socket =
+        socket
+        |> assign(:context_menu_open, false)
+        |> assign(:context_type, nil)
+        |> assign(:meeting_search_results, [])
+        |> assign(:meeting_search_query, "")
+        |> assign(:searching_meetings, false)
+        |> assign(:meeting_search_page, 0)
+        |> assign(:meeting_has_more, false)
+
+      {:noreply, socket}
+    else
+      {:noreply, assign(socket, :context_menu_open, true)}
+    end
+  end
+
+  @impl true
+  def handle_event("select_context_type", %{"type" => "contacts"}, socket) do
+    # Close context menu - contacts are added via @mention in the input
+    socket =
+      socket
+      |> assign(:context_menu_open, false)
+      |> assign(:context_type, nil)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("select_context_type", %{"type" => "meetings"}, socket) do
+    socket =
+      socket
+      |> assign(:context_type, :meetings)
+      |> assign(:searching_meetings, true)
+      |> assign(:meeting_search_page, 0)
+
+    # Load recent meetings
+    send(self(), {:chat_meeting_list, socket.assigns.current_user.id, 0})
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("meeting_search", %{"value" => query}, socket) do
+    query = String.trim(query)
+
+    socket =
+      socket
+      |> assign(:meeting_search_query, query)
+      |> assign(:searching_meetings, true)
+      |> assign(:meeting_search_page, 0)
+
+    if query == "" do
+      send(self(), {:chat_meeting_list, socket.assigns.current_user.id, 0})
+    else
+      send(self(), {:chat_meeting_search, query, socket.assigns.current_user.id, 0})
+    end
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("select_meeting", %{"id" => id, "title" => title}, socket) do
+    meeting = %{id: String.to_integer(id), title: title}
+
+    # Don't add duplicates
+    already_added = Enum.any?(socket.assigns.mentioned_meetings, fn m ->
+      to_string(Map.get(m, :id, Map.get(m, "id"))) == to_string(id)
+    end)
+
+    socket =
+      if already_added do
+        socket
+      else
+        assign(socket, :mentioned_meetings, socket.assigns.mentioned_meetings ++ [meeting])
+      end
+
+    # Close meeting dropdown
+    socket =
+      socket
+      |> assign(:context_menu_open, false)
+      |> assign(:context_type, nil)
+      |> assign(:meeting_search_results, [])
+      |> assign(:meeting_search_query, "")
+      |> assign(:searching_meetings, false)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("remove_meeting", %{"id" => id}, socket) do
+    mentioned =
+      Enum.reject(socket.assigns.mentioned_meetings, fn meeting ->
+        to_string(Map.get(meeting, :id, Map.get(meeting, "id"))) == to_string(id)
+      end)
+
+    {:noreply, assign(socket, :mentioned_meetings, mentioned)}
+  end
+
+  @impl true
+  def handle_event("load_more_meetings", _params, socket) do
+    next_page = socket.assigns.meeting_search_page + 1
+
+    socket =
+      socket
+      |> assign(:meeting_search_page, next_page)
+      |> assign(:searching_meetings, true)
+
+    query = socket.assigns.meeting_search_query
+
+    if query == "" do
+      send(self(), {:chat_meeting_list, socket.assigns.current_user.id, next_page})
+    else
+      send(self(), {:chat_meeting_search, query, socket.assigns.current_user.id, next_page})
+    end
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event("select_mention", params, socket) do
     contact = %{
       id: params["id"],
@@ -355,13 +535,15 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
       when is_binary(message) and byte_size(message) > 0 do
     conversation = socket.assigns.current_conversation
     mentioned = parse_mentioned_contacts(params["mentioned_contacts"])
+    mentioned_meetings = parse_mentioned_meetings(params["mentioned_meetings"])
 
     # Create user message
     {:ok, user_msg} =
       Chat.add_message(conversation.id, %{
         role: "user",
         content: message,
-        mentioned_contacts: mentioned
+        mentioned_contacts: mentioned,
+        mentioned_meetings: mentioned_meetings
       })
 
     # Auto-set title from first message
@@ -374,10 +556,11 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
       |> assign(:messages, messages)
       |> assign(:sending, true)
       |> assign(:mentioned_contacts, [])
+      |> assign(:mentioned_meetings, [])
       |> push_event("clear_chat_input", %{})
 
-    # Ask parent to run AI query
-    send(self(), {:chat_ask_ai, message, mentioned, conversation.id})
+    # Ask parent to run AI query with meeting context
+    send(self(), {:chat_ask_ai, message, mentioned, conversation.id, mentioned_meetings})
 
     {:noreply, socket}
   end
@@ -396,6 +579,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
       |> assign(:current_conversation, conversation)
       |> assign(:messages, [])
       |> assign(:mentioned_contacts, [])
+      |> assign(:mentioned_meetings, [])
       |> assign(:active_tab, :chat)
 
     {:noreply, socket}
@@ -456,6 +640,18 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
   end
 
   defp parse_mentioned_contacts(contacts) when is_list(contacts), do: contacts
+
+  defp parse_mentioned_meetings(nil), do: []
+  defp parse_mentioned_meetings(""), do: []
+
+  defp parse_mentioned_meetings(json) when is_binary(json) do
+    case Jason.decode(json) do
+      {:ok, meetings} when is_list(meetings) -> meetings
+      _ -> []
+    end
+  end
+
+  defp parse_mentioned_meetings(meetings) when is_list(meetings), do: meetings
 
   defp format_sources(sources) when is_list(sources) do
     Enum.map(sources, fn

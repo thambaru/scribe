@@ -29,12 +29,16 @@ defmodule SocialScribeWeb.ChatLive.ChatHandlers do
         {:ok, results, has_more} =
           SocialScribe.Chat.MeetingSearch.search(user_id, query, page: page)
 
-        send_update(SocialScribeWeb.ChatLive.ChatSidebarComponent,
+        update_attrs = [
           id: "chat-sidebar",
           meeting_search_results: results,
           searching_meetings: false,
           meeting_has_more: has_more
-        )
+        ]
+
+        update_attrs = if page > 0, do: update_attrs ++ [meeting_search_append: true], else: update_attrs
+
+        send_update(SocialScribeWeb.ChatLive.ChatSidebarComponent, update_attrs)
 
         {:noreply, socket}
       end
@@ -43,12 +47,16 @@ defmodule SocialScribeWeb.ChatLive.ChatHandlers do
         {:ok, results, has_more} =
           SocialScribe.Chat.MeetingSearch.list_recent(user_id, page: page)
 
-        send_update(SocialScribeWeb.ChatLive.ChatSidebarComponent,
+        update_attrs = [
           id: "chat-sidebar",
           meeting_search_results: results,
           searching_meetings: false,
           meeting_has_more: has_more
-        )
+        ]
+
+        update_attrs = if page > 0, do: update_attrs ++ [meeting_search_append: true], else: update_attrs
+
+        send_update(SocialScribeWeb.ChatLive.ChatSidebarComponent, update_attrs)
 
         {:noreply, socket}
       end
