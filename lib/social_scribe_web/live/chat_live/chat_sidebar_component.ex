@@ -389,17 +389,6 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
   end
 
   @impl true
-  def handle_event("select_context_type", %{"type" => "contacts"}, socket) do
-    # Close context menu - contacts are added via @mention in the input
-    socket =
-      socket
-      |> assign(:context_menu_open, false)
-      |> assign(:context_type, nil)
-
-    {:noreply, socket}
-  end
-
-  @impl true
   def handle_event("select_context_type", %{"type" => "meetings"}, socket) do
     socket =
       socket

@@ -147,19 +147,9 @@ defmodule SocialScribeWeb.ChatComponents do
       <button
         type="button"
         phx-click="select_context_type"
-        phx-value-type="contacts"
-        phx-target={@target}
-        class="w-full text-left px-3 py-2.5 hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 rounded-t-lg"
-      >
-        <.icon name="hero-user-group" class="size-4 text-gray-500" />
-        <span class="text-sm text-gray-700">Contacts</span>
-      </button>
-      <button
-        type="button"
-        phx-click="select_context_type"
         phx-value-type="meetings"
         phx-target={@target}
-        class="w-full text-left px-3 py-2.5 hover:bg-gray-50 flex items-center gap-2 rounded-b-lg"
+        class="w-full text-left px-3 py-2.5 hover:bg-gray-50 flex items-center gap-2 rounded-lg"
       >
         <.icon name="hero-video-camera" class="size-4 text-gray-500" />
         <span class="text-sm text-gray-700">Meetings</span>
