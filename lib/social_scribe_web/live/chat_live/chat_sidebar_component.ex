@@ -209,7 +209,9 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
                   <.icon name="hero-plus-circle" class="size-3" />
                   Add context
                 </button>
-                <.context_type_picker :if={@context_menu_open && @context_type == nil} target={@myself} />
+                <div :if={@context_menu_open && @context_type == nil} phx-click-away="close_context_menu" phx-target={@myself}>
+                  <.context_type_picker target={@myself} />
+                </div>
               </div>
             </div>
 
@@ -229,7 +231,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
               </div>
 
               <%!-- Meeting search dropdown (triggered by Add context > Meetings) --%>
-              <div :if={@context_type == :meetings} class="relative">
+              <div :if={@context_type == :meetings} class="relative" phx-click-away="close_context_menu" phx-target={@myself}>
                 <.meeting_dropdown
                   results={@meeting_search_results}
                   searching={@searching_meetings}
@@ -386,6 +388,21 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
     else
       {:noreply, assign(socket, :context_menu_open, true)}
     end
+  end
+
+  @impl true
+  def handle_event("close_context_menu", _params, socket) do
+    socket =
+      socket
+      |> assign(:context_menu_open, false)
+      |> assign(:context_type, nil)
+      |> assign(:meeting_search_results, [])
+      |> assign(:meeting_search_query, "")
+      |> assign(:searching_meetings, false)
+      |> assign(:meeting_search_page, 0)
+      |> assign(:meeting_has_more, false)
+
+    {:noreply, socket}
   end
 
   @impl true
