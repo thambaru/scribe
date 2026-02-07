@@ -275,15 +275,16 @@ defmodule SocialScribeWeb.ChatComponents do
   """
   attr :provider, :any, required: true
   attr :class, :string, default: "size-4"
+  attr :style, :string, default: ""
 
   def crm_icon(assigns) do
     ~H"""
-    <span :if={normalize_provider(@provider) == :hubspot} title="HubSpot" class={["inline-block", "bg-gray-200 rounded-[10px]", @class]}>
+    <span :if={normalize_provider(@provider) == :hubspot} title="HubSpot" class={["inline-block", "bg-gray-200 rounded-[10px]", @class]} style={@style}>
       <svg viewBox="0 0 24 24" fill="currentColor" class={"text-orange-500 " <> @class}>
         <path d="M17.58 10.1V7.64a2.08 2.08 0 0 0 1.21-1.88v-.06A2.08 2.08 0 0 0 16.71 3.62h-.06A2.08 2.08 0 0 0 14.57 5.7v.06a2.08 2.08 0 0 0 1.21 1.88V10.1a5.33 5.33 0 0 0-2.4 1.18l-6.39-4.97a2.2 2.2 0 0 0 .06-.51 2.24 2.24 0 1 0-2.24 2.24c.35 0 .68-.09.98-.24l6.27 4.88a5.37 5.37 0 0 0 .14 6.06l-1.93 1.93a1.63 1.63 0 0 0-.47-.08 1.66 1.66 0 1 0 1.66 1.66 1.63 1.63 0 0 0-.08-.47l1.9-1.9a5.38 5.38 0 1 0 4.14-9.88zm-.93 7.64a2.54 2.54 0 1 1 0-5.08 2.54 2.54 0 0 1 0 5.08z" />
       </svg>
     </span>
-    <span :if={normalize_provider(@provider) == :salesforce} title="Salesforce" class={["inline-block", "bg-gray-200 rounded-[10px]", @class]}>
+    <span :if={normalize_provider(@provider) == :salesforce} title="Salesforce" class={["inline-block", "bg-gray-200 rounded-[10px]", @class]} style={@style}>
       <svg viewBox="0 0 24 24" fill="currentColor" class={"text-[#00A1E0] " <> @class}>
         <path d="M10.05 5.43a4.35 4.35 0 0 1 3.37-1.6 4.39 4.39 0 0 1 4.1 2.87 3.65 3.65 0 0 1 1.47-.31 3.69 3.69 0 0 1 3.69 3.69 3.69 3.69 0 0 1-3.69 3.69h-.15l-.01.14a3.9 3.9 0 0 1-3.87 3.46 3.88 3.88 0 0 1-2.38-.82 4.67 4.67 0 0 1-3.54 1.63 4.68 4.68 0 0 1-4.44-3.19A3.43 3.43 0 0 1 3 11.73a3.43 3.43 0 0 1 2.79-3.37 4.07 4.07 0 0 1-.06-.72A4.14 4.14 0 0 1 9.87 3.5c.07 0 .13.01.18.01v-.01l.01.01-.01 1.92z" />
       </svg>
@@ -302,23 +303,34 @@ defmodule SocialScribeWeb.ChatComponents do
       |> Enum.map(fn source -> Map.get(source, :provider, Map.get(source, "provider")) end)
       |> Enum.uniq()
 
-    assigns = assign(assigns, :providers, providers)
+    crm_providers = Enum.filter(providers, &(normalize_provider(&1) != :meeting))
+    has_meetings = Enum.any?(providers, &(normalize_provider(&1) == :meeting))
+    total = length(crm_providers) + if(has_meetings, do: 1, else: 0)
+    indexed_providers = Enum.with_index(crm_providers)
+
+    assigns =
+      assigns
+      |> assign(:indexed_providers, indexed_providers)
+      |> assign(:has_meetings, has_meetings)
+      |> assign(:total, total)
 
     ~H"""
     <div class="flex items-center gap-1.5 mt-2 pt-1.5">
       <span class="text-xs text-gray-400">Sources</span>
-      <span class="flex items-center gap-1">
+      <span class="flex items-center -space-x-1.5">
         <.crm_icon
-          :for={provider <- Enum.filter(@providers, &(normalize_provider(&1) != :meeting))}
+          :for={{provider, idx} <- @indexed_providers}
           provider={provider}
-          class="size-4"
+          class="size-5 ring-2 ring-white rounded-full"
+          style={"position:relative;z-index:#{@total - idx}"}
         />
         <span
-          :if={Enum.any?(@providers, &(normalize_provider(&1) == :meeting))}
+          :if={@has_meetings}
           title="Meeting"
-          class="inline-block"
+          class="size-5 ring-2 ring-white rounded-full bg-gray-200 flex items-center justify-center"
+          style="position:relative;z-index:0"
         >
-          <.icon name="hero-video-camera" class="size-4 text-indigo-500" />
+          <.icon name="hero-video-camera" class="size-3 text-indigo-500" />
         </span>
       </span>
     </div>
@@ -338,17 +350,25 @@ defmodule SocialScribeWeb.ChatComponents do
       |> Enum.uniq()
 
     has_meetings = assigns.meetings != []
+    total = length(providers) + if(has_meetings, do: 1, else: 0)
+    indexed_providers = Enum.with_index(providers)
 
     assigns =
       assigns
-      |> assign(:providers, providers)
+      |> assign(:indexed_providers, indexed_providers)
       |> assign(:has_meetings, has_meetings)
+      |> assign(:total, total)
 
     ~H"""
-    <div :if={@providers != [] || @has_meetings} class="flex items-center gap-1">
-      <.crm_icon :for={provider <- @providers} provider={provider} class="size-4" />
-      <span :if={@has_meetings} title="Meetings" class="inline-block">
-        <.icon name="hero-video-camera" class="size-4 text-indigo-500" />
+    <div :if={@indexed_providers != [] || @has_meetings} class="flex items-center -space-x-1.5">
+      <.crm_icon
+        :for={{provider, idx} <- @indexed_providers}
+        provider={provider}
+        class="size-5 ring-2 ring-white rounded-full"
+        style={"position:relative;z-index:#{@total - idx}"}
+      />
+      <span :if={@has_meetings} title="Meetings" class="size-5 ring-2 ring-white rounded-full bg-gray-200 flex items-center justify-center" style="position:relative;z-index:0">
+        <.icon name="hero-video-camera" class="size-3 text-indigo-500" />
       </span>
     </div>
     """
