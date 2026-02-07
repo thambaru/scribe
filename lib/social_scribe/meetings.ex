@@ -134,6 +134,46 @@ defmodule SocialScribe.Meetings do
   end
 
   @doc """
+  Searches a user's meetings by title. Returns `{results, has_more?}`.
+  """
+  def search_user_meetings(user_id, query, limit \\ 10, offset \\ 0) do
+    pattern = "%#{query}%"
+
+    results =
+      from(m in Meeting,
+        join: ce in assoc(m, :calendar_event),
+        where: ce.user_id == ^user_id and ilike(m.title, ^pattern),
+        order_by: [desc: m.recorded_at],
+        limit: ^(limit + 1),
+        offset: ^offset,
+        preload: [:meeting_participants]
+      )
+      |> Repo.all()
+
+    has_more = length(results) > limit
+    {Enum.take(results, limit), has_more}
+  end
+
+  @doc """
+  Lists a user's most recent meetings. Returns `{results, has_more?}`.
+  """
+  def list_recent_user_meetings(user_id, limit \\ 10, offset \\ 0) do
+    results =
+      from(m in Meeting,
+        join: ce in assoc(m, :calendar_event),
+        where: ce.user_id == ^user_id,
+        order_by: [desc: m.recorded_at],
+        limit: ^(limit + 1),
+        offset: ^offset,
+        preload: [:meeting_participants]
+      )
+      |> Repo.all()
+
+    has_more = length(results) > limit
+    {Enum.take(results, limit), has_more}
+  end
+
+  @doc """
   Gets a meeting with its details preloaded.
 
   ## Examples
