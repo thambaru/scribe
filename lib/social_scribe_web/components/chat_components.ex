@@ -137,6 +137,133 @@ defmodule SocialScribeWeb.ChatComponents do
   end
 
   @doc """
+  Renders the context type picker dropdown (Contacts / Meetings).
+  """
+  attr :target, :any, default: nil
+
+  def context_type_picker(assigns) do
+    ~H"""
+    <div class="absolute bottom-full left-0 mb-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 w-48">
+      <button
+        type="button"
+        phx-click="select_context_type"
+        phx-value-type="contacts"
+        phx-target={@target}
+        class="w-full text-left px-3 py-2.5 hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 rounded-t-lg"
+      >
+        <.icon name="hero-user-group" class="size-4 text-gray-500" />
+        <span class="text-sm text-gray-700">Contacts</span>
+      </button>
+      <button
+        type="button"
+        phx-click="select_context_type"
+        phx-value-type="meetings"
+        phx-target={@target}
+        class="w-full text-left px-3 py-2.5 hover:bg-gray-50 flex items-center gap-2 rounded-b-lg"
+      >
+        <.icon name="hero-video-camera" class="size-4 text-gray-500" />
+        <span class="text-sm text-gray-700">Meetings</span>
+      </button>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders the meeting search dropdown with search input, results, and load more.
+  """
+  attr :results, :list, required: true
+  attr :searching, :boolean, default: false
+  attr :has_more, :boolean, default: false
+  attr :query, :string, default: ""
+  attr :target, :any, default: nil
+
+  def meeting_dropdown(assigns) do
+    ~H"""
+    <div class="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-72 flex flex-col z-50">
+      <div class="p-2 border-b border-gray-100">
+        <input
+          type="text"
+          placeholder="Search meetings..."
+          value={@query}
+          phx-keyup="meeting_search"
+          phx-target={@target}
+          phx-debounce="300"
+          class="w-full text-sm border border-gray-200 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+          autofocus
+        />
+      </div>
+      <div class="overflow-y-auto flex-1">
+        <div :if={@searching} class="p-3 text-sm text-gray-500 text-center">
+          <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600 mx-auto mb-1">
+          </div>
+          Searching meetings...
+        </div>
+        <div
+          :if={!@searching && @results == []}
+          class="p-3 text-sm text-gray-500 text-center"
+        >
+          No meetings found
+        </div>
+        <button
+          :for={meeting <- @results}
+          type="button"
+          phx-click="select_meeting"
+          phx-value-id={meeting.id}
+          phx-value-title={meeting.title}
+          phx-target={@target}
+          class="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 last:border-0"
+        >
+          <div class="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0">
+            <.icon name="hero-video-camera" class="size-3.5 text-indigo-500" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-gray-900 truncate">
+              {meeting.title}
+            </div>
+            <div class="text-xs text-gray-500">
+              {format_meeting_date(meeting.recorded_at)} · {format_meeting_duration(meeting.duration_seconds)} · {meeting.participant_count} attendees
+            </div>
+          </div>
+        </button>
+        <button
+          :if={@has_more && !@searching}
+          type="button"
+          phx-click="load_more_meetings"
+          phx-target={@target}
+          class="w-full text-center px-3 py-2 text-xs text-indigo-600 hover:bg-indigo-50 font-medium"
+        >
+          Load more...
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a meeting context pill with calendar icon and meeting title.
+  """
+  attr :meeting, :map, required: true
+  attr :target, :any, default: nil
+
+  def meeting_pill(assigns) do
+    ~H"""
+    <span class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium">
+      <.icon name="hero-video-camera" class="size-3" />
+      <span class="truncate max-w-[120px]">{Map.get(@meeting, :title, Map.get(@meeting, "title", "Meeting"))}</span>
+      <button
+        type="button"
+        phx-click="remove_meeting"
+        phx-value-id={Map.get(@meeting, :id, Map.get(@meeting, "id"))}
+        phx-target={@target}
+        class="ml-0.5 p-0.5 rounded-full hover:bg-indigo-100"
+      >
+        <.icon name="hero-x-mark" class="size-3" />
+      </button>
+    </span>
+    """
+  end
+
+  @doc """
   Renders a small CRM provider icon (HubSpot sprocket or Salesforce cloud).
   """
   attr :provider, :any, required: true
@@ -173,8 +300,19 @@ defmodule SocialScribeWeb.ChatComponents do
     ~H"""
     <div class="flex items-center gap-1.5 mt-2 pt-1.5">
       <span class="text-xs text-gray-400">Sources</span>
-      <span class="flex items-center -space-x-1">
-        <.crm_icon :for={provider <- @providers} provider={provider} class="size-4" />
+      <span class="flex items-center gap-1">
+        <.crm_icon
+          :for={provider <- Enum.filter(@providers, &(normalize_provider(&1) != :meeting))}
+          provider={provider}
+          class="size-4"
+        />
+        <span
+          :if={Enum.any?(@providers, &(normalize_provider(&1) == :meeting))}
+          title="Meeting"
+          class="inline-block"
+        >
+          <.icon name="hero-video-camera" class="size-4 text-indigo-500" />
+        </span>
       </span>
     </div>
     """
@@ -184,6 +322,7 @@ defmodule SocialScribeWeb.ChatComponents do
   Renders stacked CRM icons below the input showing which CRMs are referenced by mentioned contacts.
   """
   attr :contacts, :list, required: true
+  attr :meetings, :list, default: []
 
   def source_icons(assigns) do
     providers =
@@ -191,11 +330,19 @@ defmodule SocialScribeWeb.ChatComponents do
       |> Enum.map(fn c -> Map.get(c, :provider, Map.get(c, "provider")) end)
       |> Enum.uniq()
 
-    assigns = assign(assigns, :providers, providers)
+    has_meetings = assigns.meetings != []
+
+    assigns =
+      assigns
+      |> assign(:providers, providers)
+      |> assign(:has_meetings, has_meetings)
 
     ~H"""
-    <div :if={@providers != []} class="flex items-center -space-x-1">
+    <div :if={@providers != [] || @has_meetings} class="flex items-center gap-1">
       <.crm_icon :for={provider <- @providers} provider={provider} class="size-4" />
+      <span :if={@has_meetings} title="Meetings" class="inline-block">
+        <.icon name="hero-video-camera" class="size-4 text-indigo-500" />
+      </span>
     </div>
     """
   end
@@ -285,8 +432,33 @@ defmodule SocialScribeWeb.ChatComponents do
   defp provider_atom(_), do: :unknown
 
   defp normalize_provider(p) when is_atom(p), do: p
+  defp normalize_provider("meeting"), do: :meeting
   defp normalize_provider(p) when is_binary(p), do: String.to_existing_atom(p)
   defp normalize_provider(_), do: :unknown
+
+  defp format_meeting_date(nil), do: ""
+
+  defp format_meeting_date(datetime) do
+    Calendar.strftime(datetime, "%b %-d, %Y")
+  end
+
+  defp format_meeting_duration(nil), do: ""
+
+  defp format_meeting_duration(seconds) when is_integer(seconds) do
+    minutes = div(seconds, 60)
+
+    cond do
+      minutes < 1 -> "< 1 min"
+      minutes == 1 -> "1 min"
+      minutes < 60 -> "#{minutes} min"
+      true ->
+        hours = div(minutes, 60)
+        rem_min = rem(minutes, 60)
+        if rem_min == 0, do: "#{hours}h", else: "#{hours}h #{rem_min}m"
+    end
+  end
+
+  defp format_meeting_duration(_), do: ""
 
   @doc false
   defp parse_content_with_mentions(content, mentioned_contacts) when is_binary(content) do
