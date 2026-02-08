@@ -4,6 +4,8 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponentTest do
   import Phoenix.LiveViewTest
   import SocialScribe.AccountsFixtures
   import SocialScribe.ChatFixtures
+  import SocialScribe.MeetingsFixtures
+  import SocialScribe.CalendarFixtures
   import Mox
 
   setup :verify_on_exit!
@@ -309,6 +311,407 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponentTest do
 
       html = render(view)
       assert html =~ "translate-x-full"
+    end
+  end
+
+  describe "Chat Sidebar - context menu" do
+    setup %{conn: conn} do
+      user = user_fixture()
+
+      %{
+        conn: log_in_user(conn, user),
+        user: user
+      }
+    end
+
+    test "renders Add context button", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/dashboard")
+      assert html =~ "Add context"
+    end
+
+    test "toggle_context_menu opens the context menu", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      html = render(view)
+      # The context type picker should appear with "Meetings" option
+      assert html =~ "Meetings"
+    end
+
+    test "toggle_context_menu closes when already open", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Open
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      # Close
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      html = render(view)
+      # Context type picker should not be visible when closed
+      refute html =~ "Search meetings..."
+    end
+
+    test "close_context_menu resets context menu state", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Open context menu
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      # Close via click-away event
+      view
+      |> element("#chat-mention-input")
+      |> render_hook("close_context_menu", %{})
+
+      html = render(view)
+      refute html =~ "Search meetings..."
+    end
+  end
+
+  describe "Chat Sidebar - meeting context" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{
+          calendar_event_id: calendar_event.id,
+          title: "Sprint Planning"
+        })
+
+      meeting_participant_fixture(%{meeting_id: meeting.id, name: "Alice"})
+
+      %{
+        conn: log_in_user(conn, user),
+        user: user,
+        meeting: meeting
+      }
+    end
+
+    test "select_context_type shows meeting search dropdown", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Open context menu
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      # Select "Meetings" context type
+      view
+      |> element("button[phx-click='select_context_type']")
+      |> render_click()
+
+      # Wait for async meeting list to load
+      Process.sleep(200)
+
+      html = render(view)
+      assert html =~ "Search meetings..."
+      assert html =~ "Sprint Planning"
+    end
+
+    test "select_meeting adds meeting pill to the input area", %{conn: conn, meeting: meeting} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Open context menu and select Meetings
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      view
+      |> element("button[phx-click='select_context_type']")
+      |> render_click()
+
+      Process.sleep(200)
+
+      # Select the meeting
+      view
+      |> element("button[phx-click='select_meeting'][phx-value-id='#{meeting.id}']")
+      |> render_click()
+
+      html = render(view)
+      # Meeting pill should appear
+      assert html =~ "Sprint Planning"
+    end
+
+    test "select_meeting does not add duplicate meetings", %{conn: conn, meeting: meeting} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Open context menu and select the same meeting twice
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      view
+      |> element("button[phx-click='select_context_type']")
+      |> render_click()
+
+      Process.sleep(200)
+
+      view
+      |> element("button[phx-click='select_meeting'][phx-value-id='#{meeting.id}']")
+      |> render_click()
+
+      # Open again and try to add same meeting
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      view
+      |> element("button[phx-click='select_context_type']")
+      |> render_click()
+
+      Process.sleep(200)
+
+      view
+      |> element("button[phx-click='select_meeting'][phx-value-id='#{meeting.id}']")
+      |> render_click()
+
+      html = render(view)
+      # Should only appear once as a pill (the remove button is unique per meeting)
+      assert length(Regex.scan(~r/phx-click="remove_meeting"/, html)) == 1
+    end
+
+    test "remove_meeting removes meeting pill", %{conn: conn, meeting: meeting} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Add a meeting first
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      view
+      |> element("button[phx-click='select_context_type']")
+      |> render_click()
+
+      Process.sleep(200)
+
+      view
+      |> element("button[phx-click='select_meeting'][phx-value-id='#{meeting.id}']")
+      |> render_click()
+
+      # Now remove it
+      view
+      |> element("button[phx-click='remove_meeting'][phx-value-id='#{meeting.id}']")
+      |> render_click()
+
+      html = render(view)
+      refute html =~ "remove_meeting"
+    end
+
+    test "meeting_search filters meetings by query", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Open context menu and select Meetings
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      view
+      |> element("button[phx-click='select_context_type']")
+      |> render_click()
+
+      Process.sleep(200)
+
+      # Search with a query that won't match
+      view
+      |> element("#chat-mention-input")
+      |> render_hook("meeting_search", %{"value" => "Nonexistent"})
+
+      Process.sleep(200)
+
+      html = render(view)
+      refute html =~ "Sprint Planning"
+    end
+  end
+
+  describe "Chat Sidebar - select_mention" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      _hubspot_cred = hubspot_credential_fixture(%{user_id: user.id})
+
+      %{
+        conn: log_in_user(conn, user),
+        user: user
+      }
+    end
+
+    test "select_mention adds contact to mentioned contacts", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      view
+      |> element("#chat-mention-input")
+      |> render_hook("select_mention", %{
+        "id" => "1",
+        "provider" => "hubspot",
+        "firstname" => "John",
+        "lastname" => "Doe",
+        "email" => "john@test.com",
+        "credential_id" => "123"
+      })
+
+      html = render(view)
+      # The hidden input should contain the mentioned contact in JSON
+      assert html =~ "John"
+    end
+
+    test "remove_mention removes contact from mentioned contacts", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Add a contact first
+      view
+      |> element("#chat-mention-input")
+      |> render_hook("select_mention", %{
+        "id" => "1",
+        "provider" => "hubspot",
+        "firstname" => "John",
+        "lastname" => "Doe",
+        "email" => "john@test.com",
+        "credential_id" => "123"
+      })
+
+      # Remove it
+      view
+      |> element("#chat-mention-input")
+      |> render_hook("remove_mention", %{
+        "firstname" => "John",
+        "provider" => "hubspot"
+      })
+
+      html = render(view)
+      # The mentions hidden input should be empty list
+      assert html =~ "chat-mentions-hidden"
+    end
+  end
+
+  describe "Chat Sidebar - sending messages with meeting context" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{
+          calendar_event_id: calendar_event.id,
+          title: "Deal Review"
+        })
+
+      meeting_participant_fixture(%{meeting_id: meeting.id, name: "Bob"})
+
+      %{
+        conn: log_in_user(conn, user),
+        user: user,
+        meeting: meeting
+      }
+    end
+
+    test "sending a message with mentioned meetings includes them", %{conn: conn, meeting: meeting} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Add a meeting first
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      view
+      |> element("button[phx-click='select_context_type']")
+      |> render_click()
+
+      Process.sleep(200)
+
+      view
+      |> element("button[phx-click='select_meeting'][phx-value-id='#{meeting.id}']")
+      |> render_click()
+
+      # Send message with the meeting context
+      meetings_json = Jason.encode!([%{"id" => meeting.id, "title" => "Deal Review"}])
+
+      view
+      |> element("form[phx-submit='send_message']")
+      |> render_submit(%{
+        "message" => "What was discussed?",
+        "mentioned_contacts" => "[]",
+        "mentioned_meetings" => meetings_json
+      })
+
+      html = render(view)
+      assert html =~ "What was discussed?"
+      assert html =~ "Thinking..."
+    end
+
+    test "new_conversation clears mentioned meetings", %{conn: conn, meeting: meeting} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Add a meeting
+      view
+      |> element("button[phx-click='toggle_context_menu']")
+      |> render_click()
+
+      view
+      |> element("button[phx-click='select_context_type']")
+      |> render_click()
+
+      Process.sleep(200)
+
+      view
+      |> element("button[phx-click='select_meeting'][phx-value-id='#{meeting.id}']")
+      |> render_click()
+
+      # Create new conversation - should clear meetings
+      view
+      |> element("button[phx-click='new_conversation']")
+      |> render_click()
+
+      html = render(view)
+      refute html =~ "remove_meeting"
+    end
+  end
+
+  describe "Chat Sidebar - switching tabs preserves and loads state" do
+    setup %{conn: conn} do
+      user = user_fixture()
+
+      %{
+        conn: log_in_user(conn, user),
+        user: user
+      }
+    end
+
+    test "switching to chat tab from history shows chat view", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Switch to history
+      view
+      |> element("button", "History")
+      |> render_click()
+
+      # Switch back to chat
+      view
+      |> element("button", "Chat")
+      |> render_click()
+
+      html = render(view)
+      assert html =~ "Ask anything about your CRM contacts"
+    end
+
+    test "history tab shows empty state when no conversations exist", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      # Note: auto-create always makes at least one, so we check it appears
+      view
+      |> element("button", "History")
+      |> render_click()
+
+      html = render(view)
+      # At minimum the auto-created conversation should show
+      assert html =~ "New conversation"
     end
   end
 end

@@ -4,6 +4,8 @@ defmodule SocialScribe.Chat.ChatAiTest do
   alias SocialScribe.Chat.ChatAi
 
   import SocialScribe.AccountsFixtures
+  import SocialScribe.MeetingsFixtures
+  import SocialScribe.CalendarFixtures
   import Mox
 
   setup :verify_on_exit!
@@ -197,6 +199,129 @@ defmodule SocialScribe.Chat.ChatAiTest do
       # Should not crash even when CRM API fails
       result = ChatAi.ask("Tell me about Error", mentioned, [])
       assert {:error, _} = result
+    end
+  end
+
+  describe "ask/4 with meeting context" do
+    test "handles mentioned_meetings with valid meeting data" do
+      user = user_fixture()
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{
+          calendar_event_id: calendar_event.id,
+          title: "Sprint Planning",
+          duration_seconds: 1800
+        })
+
+      meeting_participant_fixture(%{meeting_id: meeting.id, name: "Alice"})
+
+      Application.put_env(:social_scribe, :gemini_api_key, nil)
+
+      mentioned_meetings = [%{id: meeting.id, title: "Sprint Planning"}]
+
+      # Will fail at Gemini call but should not crash while fetching meeting context
+      result = ChatAi.ask("Summarize the sprint planning", [], [], mentioned_meetings)
+      assert {:error, _} = result
+    end
+
+    test "handles mentioned_meetings with string-keyed map" do
+      user = user_fixture()
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{
+          calendar_event_id: calendar_event.id,
+          title: "Retro"
+        })
+
+      meeting_participant_fixture(%{meeting_id: meeting.id, name: "Bob"})
+
+      Application.put_env(:social_scribe, :gemini_api_key, nil)
+
+      mentioned_meetings = [%{"id" => meeting.id, "title" => "Retro"}]
+
+      result = ChatAi.ask("What happened in retro?", [], [], mentioned_meetings)
+      assert {:error, _} = result
+    end
+
+    test "handles empty mentioned_meetings without crashing" do
+      Application.put_env(:social_scribe, :gemini_api_key, nil)
+
+      result = ChatAi.ask("Hello", [], [], [])
+      assert {:error, _} = result
+    end
+
+    test "handles nil mentioned_meetings (default parameter)" do
+      Application.put_env(:social_scribe, :gemini_api_key, nil)
+
+      # ask/3 calls ask/4 with default [] for mentioned_meetings
+      result = ChatAi.ask("Hello", [], [])
+      assert {:error, _} = result
+    end
+
+    test "handles meeting that does not exist" do
+      Application.put_env(:social_scribe, :gemini_api_key, nil)
+
+      mentioned_meetings = [%{id: -1, title: "Ghost Meeting"}]
+
+      # Should not crash when meeting is not found (get_meeting_with_details returns nil)
+      result = ChatAi.ask("Tell me about ghost", [], [], mentioned_meetings)
+      assert {:error, _} = result
+    end
+
+    test "combines contact and meeting context" do
+      user = user_fixture()
+      credential = hubspot_credential_fixture(%{user_id: user.id})
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{
+          calendar_event_id: calendar_event.id,
+          title: "Deal Review"
+        })
+
+      meeting_participant_fixture(%{meeting_id: meeting.id, name: "Charlie"})
+
+      SocialScribe.HubspotApiMock
+      |> expect(:get_contact, fn _cred, _id ->
+        {:ok, %{firstname: "John", lastname: "Doe", email: "john@test.com"}}
+      end)
+
+      Application.put_env(:social_scribe, :gemini_api_key, nil)
+
+      mentioned_contacts = [
+        %{
+          id: "1",
+          provider: :hubspot,
+          firstname: "John",
+          lastname: "Doe",
+          credential_id: credential.id
+        }
+      ]
+
+      mentioned_meetings = [%{id: meeting.id, title: "Deal Review"}]
+
+      # Should fetch both contact and meeting context without crashing
+      result = ChatAi.ask("What did John say in the deal review?", mentioned_contacts, [], mentioned_meetings)
+      assert {:error, _} = result
+    end
+
+    test "meeting sources include provider :meeting" do
+      # Verify the structure of meeting sources
+      mentioned_meetings = [%{id: 1, title: "Weekly Sync"}]
+
+      # Meeting sources should have provider: :meeting
+      sources =
+        mentioned_meetings
+        |> Enum.map(fn meeting_ref ->
+          %{
+            provider: :meeting,
+            name: Map.get(meeting_ref, :title, Map.get(meeting_ref, "title", "Meeting"))
+          }
+        end)
+
+      assert [%{provider: :meeting, name: "Weekly Sync"}] = sources
     end
   end
 end

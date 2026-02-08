@@ -99,6 +99,7 @@ The sidebar is rendered in the dashboard layout and available on every authentic
 
 | File | Purpose |
 |------|---------|
+| `assets/js/hooks/chat_sidebar.js` | CSS transition management - prevents animation on first page load/navigation |
 | `assets/js/hooks/mention_input.js` | Contenteditable input with @mention detection and pill insertion |
 | `assets/js/hooks/chat_scroll.js` | Auto-scroll messages to bottom on new content |
 | `assets/js/hooks/chat_portal.js` | DOM portal to move LiveComponent into sidebar shell |
@@ -221,6 +222,8 @@ def search(user_id, query)
 
 If one CRM fails (network error, auth error), its results are silently returned as `[]` and the other CRM's results still appear.
 
+**Token Refresh:** Token refresh is handled automatically at the API layer (`HubspotApi` and `SalesforceApi`). When a credential is passed to these APIs, they internally call `HubspotTokenRefresher.ensure_valid_token/1` or `SalesforceTokenRefresher.ensure_valid_token/1` before making requests. The chat feature itself does not need to manage token refresh.
+
 ### Meeting Search (`lib/social_scribe/chat/meeting_search.ex`)
 
 Searches the local database (not an external API):
@@ -255,6 +258,8 @@ For each mentioned contact, fetches full details from the appropriate CRM in par
     - email: john@example.com
     - phone: 555-1234
   ```
+
+Token refresh is handled automatically at the API layer - no explicit refresh calls are needed in the chat feature.
 
 **Step 2 - Fetch meeting context:**
 
@@ -362,14 +367,15 @@ Meeting search results support appending for pagination: when `meeting_search_ap
 | `close_mention_dropdown` | Focus leaves mention area | Clears mention state |
 | `select_mention` | Click contact in dropdown | Adds to `mentioned_contacts`, pushes `insert_mention_pill` event to JS hook |
 | `remove_mention` | Backspace on pill (via JS hook) | Removes contact from `mentioned_contacts` |
-| `toggle_context_menu` | "Add context" button | Opens/closes context picker |
-| `select_context_type` | Click "Meetings" option | Sets `context_type: :meetings`, sends `{:chat_meeting_list}` to parent |
-| `meeting_search` | Text input in meeting dropdown | Sends `{:chat_meeting_search}` or `{:chat_meeting_list}` to parent |
-| `select_meeting` | Click meeting in dropdown | Adds to `mentioned_meetings` (prevents duplicates), closes dropdown |
+| `toggle_context_menu` | "Add context" button | Opens context picker (or closes if already open) and clears all meeting-related state |
+| `close_context_menu` | Click-away from context picker | Closes all context UI and clears meeting search state |
+| `select_context_type` | Click "Meetings" option | Sets `context_type: :meetings`, sends `{:chat_meeting_list}` to parent to load recent meetings |
+| `meeting_search` | Text input in meeting dropdown | Sends `{:chat_meeting_search}` (if query non-empty) or `{:chat_meeting_list}` to parent; resets page to 0 |
+| `select_meeting` | Click meeting in dropdown | Adds to `mentioned_meetings` (prevents duplicates), closes context picker |
 | `remove_meeting` | Click X on meeting pill | Removes from `mentioned_meetings` |
-| `load_more_meetings` | "Load more..." button | Increments page, sends search/list request |
-| `send_message` | Form submit (Enter key) | Persists user message, sends `{:chat_ask_ai}` to parent, clears input |
-| `new_conversation` | "+" button | Creates new conversation, clears messages |
+| `load_more_meetings` | "Load more..." button | Increments page number, sends search/list request |
+| `send_message` | Form submit (Enter key) | Persists user message, sends `{:chat_ask_ai}` to parent, clears input and mentions |
+| `new_conversation` | "+" button | Creates new conversation, clears messages, resets meeting context |
 | `select_conversation` | Click conversation in history | Loads conversation and messages, switches to chat tab |
 | `delete_conversation` | Trash icon (with confirm dialog) | Deletes conversation, falls back to next or creates new |
 
@@ -444,6 +450,14 @@ A final catch-all clause `handle_info(_chat_unhandled_msg, socket)` prevents cra
 ---
 
 ## JavaScript Hooks
+
+### ChatSidebar (`assets/js/hooks/chat_sidebar.js`)
+
+Manages CSS transitions for the sidebar shell.
+
+**Lifecycle:**
+
+- `mounted()`: Schedules CSS transition classes to be added after the next animation frame, preventing the sidebar from animating on first page load or when navigating between pages. This ensures smooth animations only on user-triggered visibility toggles.
 
 ### MentionInput (`assets/js/hooks/mention_input.js`)
 
@@ -538,15 +552,44 @@ Stateless function components for all chat UI elements:
 | `source_badges/1` | Shows CRM/meeting provider icons below AI responses |
 | `source_icons/1` | Shows CRM/meeting provider icons below input area |
 
-### Message Rendering
+### Message Content Parsing
 
-`chat_message_bubble` handles three message types differently:
+The `parse_message_content/3` function dispatches message rendering based on the message role:
 
-**User messages:** Parsed via `parse_content_with_mentions/2` - splits content by `@word` patterns using regex, replaces matches with contact maps that render as styled pills. Background: `bg-[#f0f5f5]`.
+**User Messages:**
+- Parsed via `parse_content_with_mentions/2`
+- Splits content using regex pattern `/@\w+/` to extract @mention markers
+- For each captured mention, looks up the contact in `mentioned_contacts` and replaces the text with a contact map
+- Returns a mixed list of strings and contact maps: `["text", %{firstname: "John", provider: :hubspot}, "more text"]`
+- In the template, contact maps render as styled pills with avatar + CRM icon
+- Background color: `bg-[#f0f5f5]` (light blue-gray)
 
-**Assistant messages:** Parsed via `parse_markdown/2` using Earmark to convert markdown to HTML. If the message has mentioned contacts, `process_mentions_in_html/2` replaces `@firstname` occurrences with styled inline HTML pills. Rendered as `raw()` HTML with Tailwind prose classes.
+**Assistant Messages:**
+- Parsed via `parse_markdown/2`
+- Uses Earmark to convert markdown to HTML
+- If `mentioned_contacts` exist, processes the HTML via `process_mentions_in_html/2` to replace `@firstname` patterns with inline HTML pills
+- Each mention is replaced with an inline `<span>` containing:
+  - Avatar circle with first initial (20px × 20px, indigo background #c7d2fe)
+  - Positioned badge with CRM icon (HubSpot orange sprocket #f97316 or Salesforce blue cloud #00A1E0)
+  - Contact first name
+- Rendered as `raw()` HTML with Tailwind prose classes for proper markdown styling
+- Mentions appear as indigo pills with avatar badge
 
-**System messages:** Centered, gray, italic text.
+**System Messages:**
+- No special parsing - plain text, centered, gray, italic
+
+### CRM Icon Rendering
+
+CRM icons are generated inline via the `crm_icon_svg/1` helper function:
+
+- **HubSpot**: Orange (#f97316) sprocket icon
+- **Salesforce**: Blue (#00A1E0) cloud icon
+- **Size**: 10px × 10px for inline badges in pills
+
+Icons appear in:
+1. Mention pills (both user and assistant messages) - badge positioned absolutely bottom-right
+2. Contact search dropdown results - alongside contact name
+3. Source badges below AI responses - showing which CRMs were queried
 
 ---
 
@@ -590,6 +633,36 @@ live_session :require_authenticated_user,
 ```
 
 This ensures every authenticated LiveView starts with `chat_open: false`.
+
+---
+
+## Component Helper Functions
+
+The `ChatSidebarComponent` includes several private helper functions for data formatting and parsing:
+
+### `format_chat_timestamp/1`
+
+Formats a datetime into readable format with time and date:
+```
+"12:34pm – February 08, 2026"
+```
+
+Used in the chat header to show when the conversation started.
+
+### `format_sources/1`
+
+Normalizes the `sources` list from AI responses. Converts JSONB-stored sources (which may have string keys/values) into elixir maps with atom keys:
+
+Input: `[%{"provider" => "hubspot", "name" => "John"}, %{provider: :meeting, name: "Q4 Planning"}]`
+Output: `[%{provider: :hubspot, name: "John"}, %{provider: :meeting, name: "Q4 Planning"}]`
+
+### `parse_mentioned_contacts/1` and `parse_mentioned_meetings/1`
+
+Parse JSON strings from hidden form fields into Elixir lists. Called during `send_message` to extract the contact and meeting mentions set by the JS hook.
+
+- Input: JSON string or list
+- Output: List of contact/meeting maps
+- Fallback: Empty list if parsing fails or input is nil/empty
 
 ---
 
@@ -667,7 +740,33 @@ User clicks a meeting
   -> Dropdown closes, meeting_pill appears below input
 ```
 
-### 5. Sending a Message
+### 5. Context Menu State Management
+
+The context picker has automatic cleanup behavior:
+
+```
+Context menu is open when:
+  - User clicks "Add context" button (toggle_context_menu fires)
+  - context_menu_open = true, context_type = nil (shows context_type_picker)
+
+Closing the context menu clears all meeting-related state:
+  - close_context_menu fires on click-away (phx-click-away)
+  - OR selectng a meeting automatically closes it
+  
+This resets:
+  - context_menu_open = false
+  - context_type = nil (back to context_type_picker hidden)
+  - meeting_search_results = []
+  - meeting_search_query = ""
+  - searching_meetings = false
+  - meeting_search_page = 0
+  - meeting_has_more = false
+
+Note: Meeting pills remain in mentioned_meetings and won't be removed unless
+the user clicks the X button on the pill itself.
+```
+
+### 6. Sending a Message
 
 ```
 User types message and presses Enter
@@ -705,7 +804,7 @@ User types message and presses Enter
      - Source badges displayed below AI response
 ```
 
-### 6. Conversation History
+### 7. Conversation History
 
 ```
 User clicks "History" tab
