@@ -271,7 +271,7 @@ const MentionInput = {
         pill.innerHTML = `<span style="position:relative;display:inline-flex;flex-shrink:0;">
             <span style="width:20px;height:20px;border-radius:9999px;background:#c7d2fe;color:#4338ca;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;line-height:1;">${initial}</span>
             <span style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:9999px;background:white;display:flex;align-items:center;justify-content:center;">${this.getCrmIconSvg(provider)}</span>
-        </span>@${firstname}`
+        </span>${firstname}`
 
         // Find the text node containing the @mention
         let currentPos = 0
