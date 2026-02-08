@@ -16,18 +16,46 @@ defmodule SocialScribe.Chat.ChatAi do
 
   Returns `{:ok, response_text, sources}` where sources is a list
   of `%{provider: atom, name: string}` maps indicating which CRMs/meetings were queried.
+
+  Accepts optional keyword opts:
+    - `pronoun_contacts` — contacts carried over from previous messages purely
+      for pronoun resolution. These provide AI context but do NOT appear in sources.
+    - `context_meetings` — meetings carried over from previous messages for
+      background context. These provide AI context but do NOT appear in sources.
   """
-  def ask(user_message, mentioned_contacts, conversation_history, mentioned_meetings \\ []) do
-    # Fetch full contact data from CRMs for mentioned contacts
+  def ask(user_message, mentioned_contacts, conversation_history, mentioned_meetings \\ [], opts \\ []) do
+    pronoun_contacts = Keyword.get(opts, :pronoun_contacts, [])
+    context_meetings = Keyword.get(opts, :context_meetings, [])
+
+    # Fetch full contact data from CRMs for explicitly mentioned contacts
     {contact_context, sources} = fetch_contact_context(mentioned_contacts)
 
-    # Fetch meeting context for mentioned meetings
+    # Fetch context for pronoun-resolution contacts (no sources generated)
+    {pronoun_context, _ignored_sources} = fetch_contact_context(pronoun_contacts)
+
+    # Fetch meeting context for explicitly mentioned meetings
     {meeting_context, meeting_sources} = fetch_meeting_context(mentioned_meetings)
 
-    prompt = build_prompt(user_message, contact_context, meeting_context, conversation_history)
+    # Fetch context for fallback meetings (no sources generated)
+    {context_meeting_text, _ignored_meeting_sources} = fetch_meeting_context(context_meetings)
+
+    # Combine both contact contexts for the AI prompt
+    full_contact_context =
+      [contact_context, pronoun_context]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("\n\n")
+
+    # Combine both meeting contexts for the AI prompt
+    full_meeting_context =
+      [meeting_context, context_meeting_text]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("\n\n")
+
+    prompt = build_prompt(user_message, full_contact_context, full_meeting_context, conversation_history)
 
     case GeminiClient.generate(prompt) do
       {:ok, response_text} ->
+        # Only explicitly added contacts and meetings appear in sources
         {:ok, response_text, sources ++ meeting_sources}
 
       {:error, reason} ->

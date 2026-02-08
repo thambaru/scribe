@@ -68,21 +68,28 @@ defmodule SocialScribeWeb.ChatLive.ChatHandlers do
         conversation = SocialScribe.Chat.get_conversation!(conversation_id)
         history = Enum.map(conversation.messages, &Map.take(&1, [:role, :content]))
 
-        mentioned_contacts =
+        # Separate explicit contacts from pronoun-resolution fallbacks.
+        # Fallback contacts provide AI context but should NOT appear in sources.
+        {explicit_contacts, pronoun_contacts} =
           if mentioned_contacts == [] do
-            fallback_mentioned_contacts(conversation.messages)
+            {[], fallback_mentioned_contacts(conversation.messages)}
           else
-            mentioned_contacts
+            {mentioned_contacts, []}
           end
 
-        mentioned_meetings =
+        # Same separation for meetings: fallback meetings provide AI context
+        # but should NOT appear in sources.
+        {explicit_meetings, context_meetings} =
           if mentioned_meetings == [] do
-            fallback_mentioned_meetings(conversation.messages)
+            {[], fallback_mentioned_meetings(conversation.messages)}
           else
-            mentioned_meetings
+            {mentioned_meetings, []}
           end
 
-        case SocialScribe.Chat.ChatAi.ask(message, mentioned_contacts, history, mentioned_meetings) do
+        case SocialScribe.Chat.ChatAi.ask(message, explicit_contacts, history, explicit_meetings,
+               pronoun_contacts: pronoun_contacts,
+               context_meetings: context_meetings
+             ) do
           {:ok, response_text, sources} ->
             SocialScribe.Chat.add_message(conversation_id, %{
               role: "assistant",
