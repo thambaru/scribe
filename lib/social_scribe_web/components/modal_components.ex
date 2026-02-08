@@ -332,9 +332,10 @@ defmodule SocialScribeWeb.ModalComponents do
   ## Examples
 
       <.suggestion_card suggestion={%{field: "email", label: "Email", ...}} target={@myself} />
-      <.suggestion_card suggestion={suggestion} target={@myself} theme={:salesforce} />
+      <.suggestion_card suggestion={suggestion} target={@myself} theme={:salesforce} available_fields={%{...}} />
   """
   attr :suggestion, :map, required: true
+  attr :available_fields, :map, required: true
   attr :class, :string, default: nil
   attr :target, :any, default: nil
   attr :theme, :atom, default: :hubspot, values: [:hubspot, :salesforce]
@@ -343,11 +344,13 @@ defmodule SocialScribeWeb.ModalComponents do
   def suggestion_card(assigns) do
     theme_classes = theme_classes(assigns.theme)
     selected_count = if assigns.suggestion.apply, do: 1, else: 0
+    available_fields_list = Map.to_list(assigns.available_fields)
 
     assigns =
       assigns
       |> assign(:theme_classes, theme_classes)
       |> assign(:selected_count, selected_count)
+      |> assign(:available_fields_list, available_fields_list)
 
     ~H"""
     <div class={[@theme_classes.card, "rounded-2xl p-6 mb-4", @class]}>
@@ -426,9 +429,37 @@ defmodule SocialScribeWeb.ModalComponents do
         </div>
 
         <div class="mt-3 grid grid-cols-[1fr_32px_1fr] items-start gap-6">
-          <button type="button" class={["text-xs font-medium justify-self-start", @theme_classes.link]}>
-            Update mapping
-          </button>
+          <div class="relative">
+            <button
+              type="button"
+              phx-click="toggle_field_mapping"
+              phx-value-field={@suggestion.field}
+              phx-target={@target}
+              class={["text-xs font-medium justify-self-start", @theme_classes.link]}
+            >
+              Update mapping
+            </button>
+
+            <div
+              :if={!Map.get(@suggestion, :field_mapping_hidden, true)}
+              phx-click-away={JS.push("close_field_mapping", value: %{field: @suggestion.field})}
+              phx-target={@target}
+              class="absolute z-20 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg py-1"
+            >
+              <button
+                :for={{field_key, field_label} <- @available_fields_list}
+                :if={field_key != @suggestion.field}
+                type="button"
+                phx-click="change_suggestion_field"
+                phx-value-field={@suggestion.field}
+                phx-value-new-field={field_key}
+                phx-target={@target}
+                class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-slate-700"
+              >
+                {field_label}
+              </button>
+            </div>
+          </div>
           <span></span>
           <span :if={@suggestion[:timestamp]} class="text-xs text-slate-500 justify-self-start">Found in transcript<span
               class={["hover:underline cursor-help", @theme_classes.link]}

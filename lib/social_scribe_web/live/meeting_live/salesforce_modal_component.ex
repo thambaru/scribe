@@ -76,6 +76,7 @@ defmodule SocialScribeWeb.MeetingLive.SalesforceModalComponent do
                 target={@myself}
                 theme={:salesforce}
                 id_prefix="salesforce-suggestion"
+                available_fields={SocialScribe.Integrations.Suggestions.SalesforceProvider.field_labels()}
               />
             </div>
 

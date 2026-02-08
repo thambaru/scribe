@@ -179,6 +179,67 @@ defmodule SocialScribeWeb.MeetingLive.IntegrationModalComponent do
         {:noreply, assign(socket, suggestions: updated_suggestions)}
       end
 
+      @impl true
+      def handle_event("toggle_field_mapping", %{"field" => field}, socket) do
+        updated_suggestions =
+          Enum.map(socket.assigns.suggestions, fn suggestion ->
+            if suggestion.field == field do
+              Map.put(suggestion, :field_mapping_hidden, !Map.get(suggestion, :field_mapping_hidden, true))
+            else
+              suggestion
+            end
+          end)
+
+        {:noreply, assign(socket, suggestions: updated_suggestions)}
+      end
+
+      @impl true
+      def handle_event("close_field_mapping", %{"field" => field}, socket) do
+        updated_suggestions =
+          Enum.map(socket.assigns.suggestions, fn suggestion ->
+            if suggestion.field == field do
+              Map.put(suggestion, :field_mapping_hidden, true)
+            else
+              suggestion
+            end
+          end)
+
+        {:noreply, assign(socket, suggestions: updated_suggestions)}
+      end
+
+      @impl true
+      def handle_event("change_suggestion_field", %{"field" => old_field, "new-field" => new_field}, socket) do
+        field_labels = get_field_labels(socket)
+
+        updated_suggestions =
+          Enum.map(socket.assigns.suggestions, fn suggestion ->
+            if suggestion.field == old_field do
+              suggestion
+              |> Map.put(:field, new_field)
+              |> Map.put(:label, Map.get(field_labels, new_field, new_field))
+              |> Map.put(:field_mapping_hidden, true)
+            else
+              suggestion
+            end
+          end)
+
+        {:noreply, assign(socket, suggestions: updated_suggestions)}
+      end
+
+      # Helper to get field labels based on context
+      defp get_field_labels(socket) do
+        component_module = socket.view
+        module_name = to_string(component_module)
+
+        if String.contains?(module_name, "Hubspot") do
+          SocialScribe.Integrations.Suggestions.HubspotProvider.field_labels()
+        else
+          SocialScribe.Integrations.Suggestions.SalesforceProvider.field_labels()
+        end
+      rescue
+        _ -> %{}
+      end
+
       # Helper function to calculate selection counts for suggestions
       defp calculate_selection_counts(suggestions) do
         selected_count = Enum.count(suggestions, & &1.apply)

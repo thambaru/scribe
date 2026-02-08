@@ -70,7 +70,12 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
         <% else %>
           <form phx-submit="apply_updates" phx-change="toggle_suggestion" phx-target={@myself}>
             <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              <.suggestion_card :for={suggestion <- @suggestions} suggestion={suggestion} target={@myself} />
+              <.suggestion_card
+                :for={suggestion <- @suggestions}
+                suggestion={suggestion}
+                target={@myself}
+                available_fields={SocialScribe.Integrations.Suggestions.HubspotProvider.field_labels()}
+              />
             </div>
 
             <.modal_footer
