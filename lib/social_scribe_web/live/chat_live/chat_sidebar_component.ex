@@ -173,6 +173,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
                 role={message.role}
                 content={message.content}
                 mentioned_contacts={message.mentioned_contacts || []}
+                mentioned_meetings={message.mentioned_meetings || []}
                 sources={format_sources(message.sources || [])}
               />
             </div>

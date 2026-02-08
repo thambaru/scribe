@@ -32,6 +32,7 @@ defmodule SocialScribeWeb.ChatComponents do
   attr :role, :string, required: true
   attr :content, :string, required: true
   attr :mentioned_contacts, :list, default: []
+  attr :mentioned_meetings, :list, default: []
   attr :sources, :list, default: []
 
   def chat_message_bubble(assigns) do
@@ -76,6 +77,9 @@ defmodule SocialScribeWeb.ChatComponents do
                   </span>
                 </span>{part.firstname}</span><%= if !is_map(part), do: part %></span>
           <% end %>
+        </div>
+        <div :if={@role == "user" && @mentioned_meetings != []} class="flex flex-wrap gap-1 mt-1.5">
+          <.sent_meeting_pill :for={meeting <- @mentioned_meetings} meeting={meeting} />
         </div>
         <.source_badges :if={@role == "assistant" && @sources != []} sources={@sources} />
       </div>
@@ -243,6 +247,20 @@ defmodule SocialScribeWeb.ChatComponents do
         </button>
       </div>
     </div>
+    """
+  end
+
+  @doc """
+  Renders a read-only meeting pill for display in sent messages (no remove button).
+  """
+  attr :meeting, :map, required: true
+
+  def sent_meeting_pill(assigns) do
+    ~H"""
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium">
+      <.icon name="hero-video-camera" class="size-3" />
+      <span class="truncate max-w-[120px]">{Map.get(@meeting, :title, Map.get(@meeting, "title", "Meeting"))}</span>
+    </span>
     """
   end
 
