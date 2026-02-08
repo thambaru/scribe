@@ -197,6 +197,7 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
     * Arrow
     * Suggested value
     * Timestamp link
+    * **Manual Field Mapping:** "Update mapping" link opens dropdown to override AI's field selection with any available CRM field
 * **Selective Updates:** Checkbox per field allows selective updates; "Update HubSpot" button disabled until at least one field selected
 * **Form Submission:** Batch-updates selected contact properties via `HubspotApi.update_contact`
 * **Click-away Handler:** Closes dropdown without clearing selection
@@ -216,6 +217,7 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 * **Contact Search:** Debounced input triggers Salesforce SOSL search, results displayed in dropdown
 * **AI Suggestions:** Generated from meeting transcript with field-specific recommendations
 * **Suggestion Cards:** Display current Salesforce values and AI-suggested updates
+    * **Manual Field Mapping:** "Update mapping" link opens dropdown to override AI's field selection with any available CRM field
 * **Selective Updates:** Checkbox per field with "Update Salesforce" button for batch updates
 * **Supported Fields:** FirstName, LastName, Email, Phone, MobilePhone, Title, Department, MailingStreet, MailingCity, MailingState, MailingPostalCode, MailingCountry
 
