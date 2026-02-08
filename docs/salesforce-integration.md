@@ -425,7 +425,34 @@ use IntegrationModalComponent,
 | `toggle_suggestion` | Checkbox change | Toggles `apply` flag on suggestion |
 | `apply_updates` | Form submit | Sends apply message to parent |
 | `toggle_details` | Click expand | Toggles suggestion context visibility |
+| `toggle_field_mapping` | Click "Update mapping" | Opens field selector dropdown |
+| `change_suggestion_field` | Select field from dropdown | Updates suggestion's field and label |
+| `close_field_mapping` | Click outside dropdown | Closes field selector dropdown |
 | `open/close/toggle_contact_dropdown` | UI interactions | Controls dropdown state |
+
+#### Manual Field Selection
+
+Users can override the AI's field mapping if it incorrectly identifies which CRM field to update:
+
+**User Flow:**
+1. AI suggests updating a field (e.g., "Email" → "john@example.com")
+2. User clicks "Update mapping" link below the suggestion
+3. Dropdown appears showing all available CRM fields
+4. User selects correct field (e.g., "Mobile Phone")
+5. Suggestion updates with new field name and label, keeping the suggested value
+6. User submits form with corrected mapping
+
+**Implementation:**
+
+- Each `suggestion_card` receives `available_fields` map from the provider's `field_labels/0`
+- Dropdown excludes the currently selected field
+- `change_suggestion_field` event updates the suggestion's `field` and `label` in state
+- The form submission uses the updated field name when applying updates
+- State tracking: `field_mapping_hidden` boolean on each suggestion controls dropdown visibility
+
+**Helper Function:**
+
+`get_field_labels(socket)` - Detects provider (HubSpot/Salesforce) from socket context and returns the appropriate field labels map for the dropdown options.
 
 ### Salesforce Modal (`lib/social_scribe_web/live/meeting_live/salesforce_modal_component.ex`)
 
@@ -435,6 +462,7 @@ Renders the Salesforce-branded UI:
 - Submit button: "Update Salesforce" with Salesforce blue (`#00A1E0`)
 - Uses shared `contact_select` and `suggestion_card` components
 - Theme: `:salesforce` passed to suggestion cards
+- Available fields: Passes `SalesforceProvider.field_labels()` (24 fields) to each suggestion card
 
 ### Meeting Show Page Handlers (`lib/social_scribe_web/live/meeting_live/show.ex`)
 
@@ -633,6 +661,8 @@ Follow the same pattern:
 2. Create API client (`lib/social_scribe/{provider}_api.ex` + behaviour)
 3. Create token refresher (`lib/social_scribe/{provider}_token_refresher.ex` + worker)
 4. Create provider (`lib/social_scribe/integrations/suggestions/{provider}_provider.ex`)
+   - Must implement `field_labels/0` to return a map of field keys to human-readable labels
+   - This map is used for the manual field mapping dropdown
 5. Create suggestions module (`lib/social_scribe/{provider}_suggestions.ex`)
 6. Create modal component using `IntegrationModalComponent`:
    ```elixir
@@ -640,9 +670,19 @@ Follow the same pattern:
      search_message: :{provider}_search,
      generate_message: :generate_{provider}_suggestions,
      apply_message: :apply_{provider}_updates
+   
+   # In render function, pass available_fields to suggestion_card:
+   <.suggestion_card
+     :for={suggestion <- @suggestions}
+     suggestion={suggestion}
+     target={@myself}
+     available_fields={YourProvider.field_labels()}
+   />
    ```
 7. Add handlers in `MeetingLive.Show` for the three messages
 8. Add routes, config, and environment variables
+
+**Note:** The `available_fields` attribute is required for the manual field selection feature. It populates the dropdown that allows users to correct AI field mapping errors.
 
 ### Testing with Mocks
 

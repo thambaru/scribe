@@ -49,6 +49,20 @@ defmodule SocialScribe.SalesforceTokenRefresherTest do
       assert result.token == credential.token
       assert result.refresh_token == credential.refresh_token
     end
+
+    test "returns credential unchanged when expiry is well outside buffer" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          expires_at: DateTime.add(DateTime.utc_now(), 601 + 300, :second)
+        })
+
+      {:ok, result} = SalesforceTokenRefresher.ensure_valid_token(credential)
+      assert result.id == credential.id
+      assert result.token == credential.token
+    end
   end
 
   describe "refresh_credential/1" do
@@ -91,6 +105,30 @@ defmodule SocialScribe.SalesforceTokenRefresherTest do
       {:ok, updated} = Accounts.update_user_credential(credential, attrs)
       assert updated.token == "refreshed_token"
       assert updated.metadata["instance_url"] == "https://na2.salesforce.com"
+    end
+
+    test "keeps old metadata keys when updating only token" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          metadata: %{"instance_url" => "https://na1.salesforce.com", "extra" => "data"}
+        })
+
+      attrs = %{token: "new_token"}
+
+      {:ok, updated} = Accounts.update_user_credential(credential, attrs)
+      assert updated.token == "new_token"
+      assert updated.metadata["instance_url"] == "https://na1.salesforce.com"
+      assert updated.metadata["extra"] == "data"
+    end
+  end
+
+  describe "client/0" do
+    test "returns a Tesla client" do
+      client = SalesforceTokenRefresher.client()
+      assert %Tesla.Client{} = client
     end
   end
 end

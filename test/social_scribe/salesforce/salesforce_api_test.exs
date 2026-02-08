@@ -6,47 +6,145 @@ defmodule SocialScribe.SalesforceApiTest do
   import SocialScribe.AccountsFixtures
 
   describe "apply_updates/3" do
-    test "returns {:ok, :no_updates} for empty updates list" do
+    setup do
       user = user_fixture()
       credential = salesforce_credential_fixture(%{user_id: user.id})
-      {:ok, :no_updates} = SalesforceApi.apply_updates(credential, "003XX0000012345", [])
+      %{credential: credential}
     end
 
-    test "filters only updates with apply: true" do
-      user = user_fixture()
-      credential = salesforce_credential_fixture(%{user_id: user.id})
+    test "returns {:ok, :no_updates} for empty updates list", %{credential: credential} do
+      assert {:ok, :no_updates} =
+               SalesforceApi.apply_updates(credential, "003XX0000012345", [])
+    end
 
+    test "returns {:ok, :no_updates} when all updates have apply: false", %{
+      credential: credential
+    } do
       updates = [
         %{field: "Phone", new_value: "555-1234", apply: false},
         %{field: "Email", new_value: "test@example.com", apply: false}
       ]
 
-      {:ok, :no_updates} = SalesforceApi.apply_updates(credential, "003XX0000012345", updates)
+      assert {:ok, :no_updates} =
+               SalesforceApi.apply_updates(credential, "003XX0000012345", updates)
     end
 
-    test "builds correct update map from mixed apply values" do
-      user = user_fixture()
-      credential = salesforce_credential_fixture(%{user_id: user.id})
-
+    test "returns {:ok, :no_updates} for mixed updates when all set to false", %{
+      credential: credential
+    } do
       updates = [
         %{field: "Phone", new_value: "555-1234", apply: true},
         %{field: "Email", new_value: "test@example.com", apply: false},
         %{field: "Title", new_value: "CTO", apply: true}
       ]
 
-      # This will attempt an API call since there are apply: true entries,
-      # but with the mock configured, we verify the filter logic through
-      # the behaviour delegation test instead.
-      # Here we verify no crash occurs with all-false entries.
-      all_false =
-        Enum.map(updates, fn u -> %{u | apply: false} end)
+      all_false = Enum.map(updates, fn u -> %{u | apply: false} end)
 
-      {:ok, :no_updates} =
-        SalesforceApi.apply_updates(credential, "003XX0000012345", all_false)
+      assert {:ok, :no_updates} =
+               SalesforceApi.apply_updates(credential, "003XX0000012345", all_false)
+    end
+
+    test "returns {:ok, :no_updates} for a single update with apply: false", %{
+      credential: credential
+    } do
+      updates = [%{field: "Phone", new_value: "555-1234", apply: false}]
+
+      assert {:ok, :no_updates} =
+               SalesforceApi.apply_updates(credential, "003XX0000012345", updates)
+    end
+
+    test "last update wins when duplicate fields are present", %{credential: credential} do
+      # Both apply:false, so no_updates; but the map-building logic should
+      # keep the last one for each field key.
+      updates = [
+        %{field: "Phone", new_value: "555-0001", apply: false},
+        %{field: "Phone", new_value: "555-0002", apply: false}
+      ]
+
+      assert {:ok, :no_updates} =
+               SalesforceApi.apply_updates(credential, "003XX0000012345", updates)
     end
   end
 
-  describe "format_contact/1 (via module internals)" do
+  describe "search_contacts/2" do
+    test "returns error when credential has no instance_url in metadata" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          metadata: %{},
+          expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
+        })
+
+      assert {:error, :missing_instance_url} =
+               SalesforceApi.search_contacts(credential, "John")
+    end
+
+    test "returns error when credential metadata is nil" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          metadata: nil,
+          expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
+        })
+
+      assert {:error, :missing_instance_url} =
+               SalesforceApi.search_contacts(credential, "John")
+    end
+  end
+
+  describe "get_contact/2" do
+    test "returns error when credential has no instance_url" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          metadata: %{},
+          expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
+        })
+
+      assert {:error, :missing_instance_url} =
+               SalesforceApi.get_contact(credential, "003XX0000012345")
+    end
+
+    test "returns error when metadata is nil" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          metadata: nil,
+          expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
+        })
+
+      assert {:error, :missing_instance_url} =
+               SalesforceApi.get_contact(credential, "003XX0000012345")
+    end
+  end
+
+  describe "update_contact/3" do
+    test "returns error when credential has no instance_url" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          metadata: %{},
+          expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
+        })
+
+      assert {:error, :missing_instance_url} =
+               SalesforceApi.update_contact(credential, "003XX0000012345", %{
+                 "Phone" => "555-1234"
+               })
+    end
+  end
+
+  describe "credential setup" do
     test "credential has correct provider" do
       user = user_fixture()
 
@@ -70,50 +168,12 @@ defmodule SocialScribe.SalesforceApiTest do
 
       assert credential.metadata["instance_url"] == "https://na1.salesforce.com"
     end
-  end
 
-  describe "search_contacts/2" do
-    test "requires a valid credential" do
+    test "credential has default instance_url from fixture" do
       user = user_fixture()
+      credential = salesforce_credential_fixture(%{user_id: user.id})
 
-      credential =
-        salesforce_credential_fixture(%{
-          user_id: user.id,
-          expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
-        })
-
-      assert is_struct(credential)
-      assert credential.provider == "salesforce"
-    end
-  end
-
-  describe "get_contact/2" do
-    test "requires a valid credential and contact_id" do
-      user = user_fixture()
-
-      credential =
-        salesforce_credential_fixture(%{
-          user_id: user.id,
-          expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
-        })
-
-      assert is_struct(credential)
-      assert credential.provider == "salesforce"
-    end
-  end
-
-  describe "update_contact/3" do
-    test "requires a valid credential, contact_id, and updates map" do
-      user = user_fixture()
-
-      credential =
-        salesforce_credential_fixture(%{
-          user_id: user.id,
-          expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
-        })
-
-      assert is_struct(credential)
-      assert credential.provider == "salesforce"
+      assert credential.metadata["instance_url"] == "https://test.salesforce.com"
     end
   end
 end

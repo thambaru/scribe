@@ -8,7 +8,6 @@ defmodule SocialScribe.Workers.SalesforceTokenRefresherTest do
 
   describe "perform/1" do
     test "succeeds when no credentials are expiring" do
-      # No Salesforce credentials exist, so worker should complete without errors
       assert :ok = perform_job(SalesforceTokenRefresher, %{})
     end
 
@@ -22,6 +21,53 @@ defmodule SocialScribe.Workers.SalesforceTokenRefresherTest do
         })
 
       # Token expires in 1 hour, well beyond the 10-minute threshold
+      assert :ok = perform_job(SalesforceTokenRefresher, %{})
+    end
+
+    test "ignores non-salesforce credentials" do
+      user = user_fixture()
+
+      # Create a hubspot credential that is expiring
+      _hubspot_cred =
+        hubspot_credential_fixture(%{
+          user_id: user.id,
+          expires_at: DateTime.add(DateTime.utc_now(), 60, :second)
+        })
+
+      # Worker should not pick up hubspot credentials
+      assert :ok = perform_job(SalesforceTokenRefresher, %{})
+    end
+
+    test "ignores credentials without refresh_token" do
+      user = user_fixture()
+
+      _credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          refresh_token: nil,
+          expires_at: DateTime.add(DateTime.utc_now(), 60, :second)
+        })
+
+      # Credential without refresh_token should not be selected
+      assert :ok = perform_job(SalesforceTokenRefresher, %{})
+    end
+
+    test "does not crash when multiple valid credentials exist" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+
+      _cred1 =
+        salesforce_credential_fixture(%{
+          user_id: user1.id,
+          expires_at: DateTime.add(DateTime.utc_now(), 7200, :second)
+        })
+
+      _cred2 =
+        salesforce_credential_fixture(%{
+          user_id: user2.id,
+          expires_at: DateTime.add(DateTime.utc_now(), 7200, :second)
+        })
+
       assert :ok = perform_job(SalesforceTokenRefresher, %{})
     end
   end
@@ -71,6 +117,38 @@ defmodule SocialScribe.Workers.SalesforceTokenRefresherTest do
         })
 
       assert updated.metadata["instance_url"] == "https://cs42.salesforce.com"
+    end
+
+    test "salesforce credential preserves refresh_token on update" do
+      user = user_fixture()
+
+      credential =
+        salesforce_credential_fixture(%{
+          user_id: user.id,
+          refresh_token: "original_refresh"
+        })
+
+      {:ok, updated} =
+        Accounts.update_user_credential(credential, %{
+          token: "new_access_token"
+        })
+
+      assert updated.token == "new_access_token"
+      assert updated.refresh_token == "original_refresh"
+    end
+
+    test "salesforce credential can update expires_at" do
+      user = user_fixture()
+      credential = salesforce_credential_fixture(%{user_id: user.id})
+
+      new_expires = DateTime.add(DateTime.utc_now(), 14400, :second)
+
+      {:ok, updated} =
+        Accounts.update_user_credential(credential, %{
+          expires_at: new_expires
+        })
+
+      assert DateTime.compare(updated.expires_at, credential.expires_at) == :gt
     end
   end
 end
