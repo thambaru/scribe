@@ -8,6 +8,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
   import SocialScribeWeb.ChatComponents
 
   alias SocialScribe.Chat
+  alias SocialScribe.Accounts
 
   @impl true
   def mount(socket) do
@@ -32,6 +33,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
       |> assign(:mentioned_meetings, [])
       |> assign(:meeting_search_page, 0)
       |> assign(:meeting_has_more, false)
+      |> assign(:user_credentials, [])
 
     {:ok, socket}
   end
@@ -40,6 +42,15 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
   def update(%{current_user: user} = assigns, socket) do
     socket = assign(socket, :current_user, user)
     socket = assign(socket, :id, assigns.id)
+
+    # Load user credentials for source icons
+    socket =
+      if socket.assigns[:user_credentials] == [] do
+        credentials = Accounts.list_user_credentials(user)
+        assign(socket, :user_credentials, credentials)
+      else
+        socket
+      end
 
     # Handle meeting search result appending for load-more
     {meeting_results, assigns} =
@@ -100,11 +111,11 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
     ~H"""
     <div class="flex flex-col h-full" id={"chat-sidebar-#{@id}"}>
       <%!-- Header --%>
-      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white">
+      <div class="flex items-center justify-between px-4 py-3 border-gray-100 bg-white">
         <h2 class="text-lg font-semibold text-gray-900">Ask Anything</h2>
         <button
           phx-click="toggle_chat_sidebar"
-          class="text-gray-400 hover:text-gray-600 p-1"
+          class="text-gray-400 hover:text-gray-600 p-1 pr-[15px]"
           aria-label="Close sidebar"
         >
           <.icon name="hero-chevron-double-right" class="size-5" />
@@ -112,7 +123,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
       </div>
 
       <%!-- Tabs --%>
-      <div class="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-white">
+      <div class="flex items-center gap-2 px-4 py-2 border-gray-100 bg-white">
         <button
           phx-click="switch_tab"
           phx-value-tab="chat"
@@ -155,8 +166,8 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
             <div :if={@messages == []} class="flex items-center justify-center h-full">
               <div class="text-center text-gray-400">
                 <.icon name="hero-chat-bubble-left-right" class="size-10 mx-auto mb-2" />
-                <p class="text-sm">Ask anything about your CRM contacts</p>
-                <p class="text-xs mt-1">Use @mention to reference contacts</p>
+                <p class="text-base">Ask anything about your CRM contacts</p>
+                <p class="text-sm mt-1">Use @mention to reference contacts</p>
               </div>
             </div>
 
@@ -179,7 +190,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
             </div>
 
             <div :if={@sending} class="flex justify-start mb-3">
-              <div class="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-2.5 text-sm text-gray-500">
+              <div class="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-2.5 text-base text-gray-500">
                 <div class="flex items-center gap-2">
                   <div class="animate-pulse flex gap-1">
                     <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
@@ -250,7 +261,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
                   phx-update="ignore"
                   contenteditable="true"
                   data-placeholder="Ask anything about your meetings"
-                  class="chat-mention-input min-h-[72px] max-h-[140px] overflow-y-auto text-sm text-gray-700 outline-none"
+                  class="chat-mention-input min-h-[72px] max-h-[140px] overflow-y-auto text-base text-gray-700 outline-none"
                   role="textbox"
                 >
                 </div>
@@ -271,7 +282,7 @@ defmodule SocialScribeWeb.ChatLive.ChatSidebarComponent do
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2 text-xs text-gray-400">
                     <span>Sources</span>
-                    <.source_icons contacts={@mentioned_contacts} meetings={@mentioned_meetings} />
+                    <.source_icons credentials={@user_credentials} />
                   </div>
                   <button
                     id="chat-send-btn"

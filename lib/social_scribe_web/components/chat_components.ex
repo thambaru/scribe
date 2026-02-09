@@ -49,14 +49,14 @@ defmodule SocialScribeWeb.ChatComponents do
       @role == "system" && "justify-center"
     ]}>
       <div class={[
-        "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm",
+        "max-w-[85%] rounded-2xl px-4 py-2.5 text-base",
         @role == "user" && "bg-[#f0f5f5] text-gray-800 rounded-br-md",
         @role == "assistant" && "bg-transparent text-gray-800 rounded-bl-md",
-        @role == "system" && "bg-gray-50 text-gray-500 text-xs italic"
+        @role == "system" && "bg-gray-50 text-gray-500 text-sm italic"
       ]}>
         <div class={[
           "break-words",
-          @is_markdown && "prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0"
+          @is_markdown && "prose prose-base max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0"
         ]}>
           <%= if @is_markdown do %>
             <%= raw(@parsed_content) %>
@@ -289,7 +289,7 @@ defmodule SocialScribeWeb.ChatComponents do
   end
 
   @doc """
-  Renders a small CRM provider icon (HubSpot sprocket or Salesforce cloud).
+  Renders a small CRM/social media provider icon (HubSpot, Salesforce, LinkedIn, Facebook).
   """
   attr :provider, :any, required: true
   attr :class, :string, default: "size-4"
@@ -305,6 +305,16 @@ defmodule SocialScribeWeb.ChatComponents do
     <span :if={normalize_provider(@provider) == :salesforce} title="Salesforce" class={["inline-block", "bg-gray-200 rounded-[10px]", @class]} style={@style}>
       <svg viewBox="0 0 24 24" fill="currentColor" class={"text-[#00A1E0] " <> @class}>
         <path d="M10.05 5.43a4.35 4.35 0 0 1 3.37-1.6 4.39 4.39 0 0 1 4.1 2.87 3.65 3.65 0 0 1 1.47-.31 3.69 3.69 0 0 1 3.69 3.69 3.69 3.69 0 0 1-3.69 3.69h-.15l-.01.14a3.9 3.9 0 0 1-3.87 3.46 3.88 3.88 0 0 1-2.38-.82 4.67 4.67 0 0 1-3.54 1.63 4.68 4.68 0 0 1-4.44-3.19A3.43 3.43 0 0 1 3 11.73a3.43 3.43 0 0 1 2.79-3.37 4.07 4.07 0 0 1-.06-.72A4.14 4.14 0 0 1 9.87 3.5c.07 0 .13.01.18.01v-.01l.01.01-.01 1.92z" />
+      </svg>
+    </span>
+    <span :if={normalize_provider(@provider) == :linkedin} title="LinkedIn" class={["inline-block", "bg-gray-200 rounded-[10px]", @class]} style={@style}>
+      <svg viewBox="0 0 24 24" fill="currentColor" class={"text-[#0A66C2] " <> @class}>
+        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+      </svg>
+    </span>
+    <span :if={normalize_provider(@provider) == :facebook} title="Facebook" class={["inline-block", "bg-gray-200 rounded-[10px]", @class]} style={@style}>
+      <svg viewBox="0 0 24 24" fill="currentColor" class={"text-[#1877F2] " <> @class}>
+        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
       </svg>
     </span>
     """
@@ -356,38 +366,34 @@ defmodule SocialScribeWeb.ChatComponents do
   end
 
   @doc """
-  Renders stacked CRM icons below the input showing which CRMs are referenced by mentioned contacts.
+  Renders stacked CRM icons below the input showing available user connections.
   """
-  attr :contacts, :list, required: true
-  attr :meetings, :list, default: []
+  attr :credentials, :list, required: true
 
   def source_icons(assigns) do
+    # Extract unique providers from user credentials
     providers =
-      assigns.contacts
-      |> Enum.map(fn c -> Map.get(c, :provider, Map.get(c, "provider")) end)
+      assigns.credentials
+      |> Enum.map(fn c -> Map.get(c, :provider) end)
       |> Enum.uniq()
+      |> Enum.reject(&is_nil/1)
 
-    has_meetings = assigns.meetings != []
-    total = length(providers) + if(has_meetings, do: 1, else: 0)
+    total = length(providers)
     indexed_providers = Enum.with_index(providers)
 
     assigns =
       assigns
       |> assign(:indexed_providers, indexed_providers)
-      |> assign(:has_meetings, has_meetings)
       |> assign(:total, total)
 
     ~H"""
-    <div :if={@indexed_providers != [] || @has_meetings} class="flex items-center -space-x-1.5">
+    <div :if={@indexed_providers != []} class="flex items-center -space-x-1.5">
       <.crm_icon
         :for={{provider, idx} <- @indexed_providers}
         provider={provider}
         class="size-5 ring-2 ring-white rounded-full"
         style={"position:relative;z-index:#{@total - idx}"}
       />
-      <span :if={@has_meetings} title="Meetings" class="size-5 ring-2 ring-white rounded-full bg-gray-200 flex items-center justify-center" style="position:relative;z-index:0">
-        <.icon name="hero-video-camera" class="size-3 text-indigo-500" />
-      </span>
     </div>
     """
   end
@@ -482,6 +488,14 @@ defmodule SocialScribeWeb.ChatComponents do
 
   defp crm_icon_svg("salesforce") do
     ~s(<svg viewBox="0 0 24 24" fill="currentColor" style="width:10px;height:10px;color:#00A1E0;"><path d="M10.05 5.43a4.35 4.35 0 0 1 3.37-1.6 4.39 4.39 0 0 1 4.1 2.87 3.65 3.65 0 0 1 1.47-.31 3.69 3.69 0 0 1 3.69 3.69 3.69 3.69 0 0 1-3.69 3.69h-.15l-.01.14a3.9 3.9 0 0 1-3.87 3.46 3.88 3.88 0 0 1-2.38-.82 4.67 4.67 0 0 1-3.54 1.63 4.68 4.68 0 0 1-4.44-3.19A3.43 3.43 0 0 1 3 11.73a3.43 3.43 0 0 1 2.79-3.37 4.07 4.07 0 0 1-.06-.72A4.14 4.14 0 0 1 9.87 3.5c.07 0 .13.01.18.01v-.01l.01.01-.01 1.92z"/></svg>)
+  end
+
+  defp crm_icon_svg("linkedin") do
+    ~s(<svg viewBox="0 0 24 24" fill="currentColor" style="width:10px;height:10px;color:#0A66C2;"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>)
+  end
+
+  defp crm_icon_svg("facebook") do
+    ~s(<svg viewBox="0 0 24 24" fill="currentColor" style="width:10px;height:10px;color:#1877F2;"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>)
   end
 
   defp crm_icon_svg(_), do: ""
